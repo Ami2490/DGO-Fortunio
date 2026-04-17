@@ -13,7 +13,7 @@ import {
   TrendingUp, XCircle, Truck, ChevronRight, Edit3,
   CheckCircle, Clock, AlertCircle, RefreshCw, X, Loader2,
   DollarSign, Users, ShoppingCart, ChevronDown, Image as ImageIcon,
-  FileSpreadsheet, CheckCircle2, Download, CloudUpload, Trash, Upload
+  FileSpreadsheet, CheckCircle2, Download, CloudUpload, Trash, Upload, MessageSquare
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -1557,8 +1557,9 @@ export default function AdminPage({ onBack }: AdminPageProps) {
                         >
                           Masonry
                         </button>
-                      </div>
+                    </div>
                   </div>
+                </div>
 
                   {/* Marketing y Pixel */}
                   <div className="bg-[#111a24] p-10 rounded-[40px] border border-white/10 shadow-xl shadow-blue-500/5">
