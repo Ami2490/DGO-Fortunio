@@ -1,0 +1,133 @@
+{
+  "entities": {
+    "siteConfig": {
+      "title": "Site Configuration",
+      "description": "The brain of the CMS. Controls styles, content, and structure.",
+      "type": "object",
+      "properties": {
+        "nav": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "path": { "type": "string" },
+              "visible": { "type": "boolean" }
+            }
+          }
+        },
+        "hero": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "subtitle": { "type": "string" },
+            "bgImage": { "type": "string" },
+            "logoImage": { "type": "string" },
+            "buttonText": { "type": "string" },
+            "buttonColor": { "type": "string" },
+            "effectType": { "type": "string" },
+            "overlayColor": { "type": "string" },
+            "parallax": { "type": "boolean" }
+          }
+        },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "primaryColor": { "type": "string" },
+            "secondaryColor": { "type": "string" },
+            "borderRadius": { "type": "string" },
+            "fontBase": { "type": "string" }
+          }
+        },
+        "footer": {
+          "type": "object",
+          "properties": {
+            "description": { "type": "string" },
+            "phone": { "type": "string" },
+            "email": { "type": "string" },
+            "address": { "type": "string" },
+            "social": {
+              "type": "object",
+              "properties": {
+                "instagram": { "type": "string" },
+                "facebook": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "page": {
+      "title": "Page Content",
+      "description": "Dynamic content for pages like 'About Us'",
+      "type": "object",
+      "properties": {
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "visible": { "type": "boolean" }
+      }
+    },
+    "category": {
+      "title": "Product Category",
+      "description": "Categories for the Bento Grid",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "image": { "type": "string" },
+        "span": { "type": "string" },
+        "order": { "type": "number" }
+      }
+    },
+    "product": {
+      "title": "Product",
+      "description": "E-commerce product",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "stock": { "type": "number" },
+        "category": { "type": "string" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "isFeatured": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "draft", "out_of_stock"] }
+      }
+    },
+    "order": {
+      "title": "Order",
+      "description": "Customer order",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string" },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "shipped", "delivered", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "items": { "type": "array", "items": { "type": "object" } }
+      }
+    }
+  },
+  "firestore": {
+    "/config/siteConfig": {
+      "schema": "siteConfig",
+      "description": "Global CMS Configuration"
+    },
+    "/pages/{pageId}": {
+      "schema": "page",
+      "description": "Dynamic Pages"
+    },
+    "/categories/{categoryId}": {
+      "schema": "category",
+      "description": "Product Categories"
+    },
+    "/products/{productId}": {
+      "schema": "product",
+      "description": "Product Catalog"
+    },
+    "/orders/{orderId}": {
+      "schema": "order",
+      "description": "Sales Orders"
+    }
+  }
+}
