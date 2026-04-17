@@ -247,7 +247,7 @@ export default function AnalyticsView() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    const referrerCounts: Record<string, number> = {};
+    const referrerUsers: Record<string, Set<string>> = {};
     const revenueBySourceMap: Record<string, number> = {};
 
     allEvents.forEach((e: any) => {
@@ -269,8 +269,9 @@ export default function AnalyticsView() {
         }
       }
 
-      if (e.type === 'page_view') {
-        referrerCounts[source] = (referrerCounts[source] || 0) + 1;
+      if (e.type === 'page_view' && e.userId) {
+        if (!referrerUsers[source]) referrerUsers[source] = new Set();
+        referrerUsers[source].add(e.userId);
       }
 
       const isPurchase = e.type?.toLowerCase() === 'checkout_complete' || e.type?.toLowerCase() === 'purchase';
@@ -279,12 +280,11 @@ export default function AnalyticsView() {
       }
     });
 
-    const totalRefs = Object.values(referrerCounts).reduce((sum, c) => sum + c, 0);
-    const referrers = Object.entries(referrerCounts)
-      .map(([source, count]) => ({
+    const referrers = Object.entries(referrerUsers)
+      .map(([source, userSet]) => ({
         source,
-        count,
-        percentage: totalRefs > 0 ? Math.round((count / totalRefs) * 100) : 0
+        count: userSet.size,
+        percentage: uniqueVisitors > 0 ? Math.round((userSet.size / uniqueVisitors) * 100) : 0
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
@@ -518,7 +518,7 @@ export default function AnalyticsView() {
               <KPICard title="RETORNO CLIENTE" value={`${data.returningRate}%`} icon={<TrendingUp size={18} />} color="#F59E0B" subtitle="Visitantes que vuelven" />
               <KPICard title="USUARIOS REG" value={data.registeredVisits.toLocaleString()} icon={<Users size={18} />} color="#00ADEE" subtitle="Con cuenta creada" />
               <KPICard title="TIEMPO SESIÓN" value={`${data.avgTimeOnPage}s`} icon={<Clock size={18} />} color="#10B981" subtitle="Promedio de permanencia" />
-              <KPICard title="RADIO MÓVIL" value={data.deviceBreakdown.find(d => d.name === 'Celular')?.value ? `${Math.round((data.deviceBreakdown.find(d => d.name === 'Celular')!.value / data.totalVisits) * 100)}%` : '0%'} icon={<Users size={18} />} color="#7BF1FA" subtitle="Tráfico desde celular" />
+              <KPICard title="RADIO MÓVIL" value={data.deviceBreakdown.find(d => d.name === 'Celular')?.value ? `${Math.round((data.deviceBreakdown.find(d => d.name === 'Celular')!.value / data.uniqueVisitors) * 100)}%` : '0%'} icon={<Users size={18} />} color="#7BF1FA" subtitle="Tráfico desde celular" />
             </div>
 
             <div className="grid lg:grid-cols-3 gap-8">
@@ -583,7 +583,7 @@ export default function AnalyticsView() {
                   <div key={i} className="bg-white/5 p-6 rounded-3xl border border-white/5 text-center group hover:border-[#8B5CF6]/50 transition-all">
                     <p className="text-[9px] font-black uppercase text-gray-500 tracking-tighter mb-2">{r.source}</p>
                     <p className="text-2xl font-black italic text-white leading-none">{r.percentage}%</p>
-                    <p className="text-[8px] font-black text-gray-700 uppercase mt-2">{r.count} visitas</p>
+                    <p className="text-[8px] font-black text-gray-700 uppercase mt-2">{r.count} personas</p>
                   </div>
                 ))}
               </div>

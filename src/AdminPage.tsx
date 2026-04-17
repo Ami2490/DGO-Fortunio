@@ -1558,6 +1558,30 @@ export default function AdminPage({ onBack }: AdminPageProps) {
                           Masonry
                         </button>
                       </div>
+                  </div>
+
+                  {/* Marketing y Pixel */}
+                  <div className="bg-[#111a24] p-10 rounded-[40px] border border-white/10 shadow-xl shadow-blue-500/5">
+                    <div className="flex items-center gap-3 mb-8">
+                      <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-lg font-black text-white uppercase tracking-widest">Marketing y Píxel</h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">ID de Meta Píxel</label>
+                        <input 
+                          type="text" 
+                          value={config.metaPixelId || ''} 
+                          onChange={e => setConfig({...config, metaPixelId: e.target.value})} 
+                          placeholder="Ej: 123456789012345"
+                          className="w-full bg-[#0a1118] border border-white/5 rounded-2xl px-6 py-4 text-sm font-black text-white outline-none focus:border-blue-500/50 transition-all placeholder:text-gray-700" 
+                        />
+                      </div>
+                      <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-relaxed">
+                        Este ID permitirá a Facebook rastrear eventos de visita y conversión automáticamente.
+                      </p>
                     </div>
                   </div>
 
