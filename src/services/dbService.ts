@@ -59,11 +59,19 @@ export interface Order {
 
 export const dbService = {
 
-  // Auxiliar para limpiar undefined (evita errores de Firestore)
-  cleanObject: (obj: any) => {
+  // Auxiliar para limpiar undefined (evita errores de Firestore) recursivamente
+  cleanObject: (obj: any): any => {
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(item => dbService.cleanObject(item));
+    
     const newObj: any = {};
     Object.keys(obj).forEach(key => {
-      if (obj[key] !== undefined) newObj[key] = obj[key];
+      const val = obj[key];
+      if (val !== undefined) {
+        newObj[key] = (typeof val === 'object' && val !== null) 
+          ? dbService.cleanObject(val) 
+          : val;
+      }
     });
     return newObj;
   },

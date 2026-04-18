@@ -49,6 +49,11 @@ interface SiteConfig {
   };
   layoutStyle?: 'bento' | 'masonry';
   metaPixelId?: string;
+  enabledPaymentMethods: {
+    whatsapp: boolean;
+    mercadopago: boolean;
+    ualabis: boolean;
+  };
 }
 
 interface Category {
@@ -89,6 +94,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'relevant' | 'price-asc' | 'price-desc'>('relevant');
   const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
 
   const carouselProducts = useMemo(() => {
@@ -145,6 +151,17 @@ export default function App() {
       // Limpieza (opcional, Meta suele mantenerse)
     };
   }, [config?.metaPixelId]);
+
+  // --- Detección de Éxito en el Pago ---
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('status') === 'success') {
+      setShowSuccessModal(true);
+      setCart([]); // Vaciar carrito tras éxito
+      // Limpiar URL para que no reaparezca el modal al refrescar
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const itemsPerView = windowWidth >= 1024 ? 3 : windowWidth >= 768 ? 2 : 1;
 
@@ -369,6 +386,12 @@ export default function App() {
     parallax: true
   };
 
+  const defaultPaymentMethods = {
+    whatsapp: true,
+    mercadopago: true,
+    ualabis: false
+  };
+
   const footerData = config?.footer || {
     description: 'Tu socio estratégico en equipamiento gastronómico.',
     phone: '+54 9 11 1234-5678',
@@ -416,6 +439,36 @@ export default function App() {
         userEmail={currentUser?.email}
         supportPhone={config?.footer?.phone || '5491112345678'}
       />
+    );
+  }
+
+  if (currentPath === '/order-success') {
+    return (
+      <div className="min-h-screen bg-[#0a1118] flex items-center justify-center p-4 font-sans">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-[#111a24] p-12 rounded-[2.5rem] border border-white/10 text-center max-w-md w-full shadow-2xl"
+        >
+          <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-8">
+            <ShieldCheck className="w-10 h-10 text-emerald-500" />
+          </div>
+          <h1 className="text-3xl font-black uppercase tracking-tighter mb-4 text-white">¡Gracias por tu compra!</h1>
+          <p className="text-gray-400 mb-8 font-medium">
+            Tu pedido ha sido procesado correctamente. Recibirás un correo con los detalles en breve.
+          </p>
+          <button 
+            onClick={() => {
+              setCart([]);
+              setIsCartOpen(false);
+              navigate('/');
+            }}
+            className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+          >
+            Volver al Inicio
+          </button>
+        </motion.div>
+      </div>
     );
   }
 
@@ -1352,6 +1405,13 @@ export default function App() {
             <AuthModal onClose={() => setIsAuthModalOpen(false)} />
           )}
         </AnimatePresence>
+
+        {/* Modal de Éxito */}
+        <AnimatePresence>
+          {showSuccessModal && (
+            <SuccessModal onClose={() => setShowSuccessModal(false)} />
+          )}
+        </AnimatePresence>
       </div>
     </ThemeContext.Provider>
   );
@@ -1597,6 +1657,45 @@ function AuthModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </form>
+      </motion.div>
+    </>
+  );
+}
+
+function SuccessModal({ onClose }: { onClose: () => void }) {
+  return (
+    <>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-black/90 backdrop-blur-xl z-[150]"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md bg-[#0a1118] z-[160] rounded-[40px] border border-emerald-500/20 p-12 text-center shadow-2xl overflow-hidden"
+      >
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
+        <div className="mb-8 relative inline-block">
+          <div className="absolute inset-0 bg-emerald-500 blur-2xl opacity-20" />
+          <div className="relative bg-emerald-500/10 p-6 rounded-full border border-emerald-500/20">
+            <Zap className="w-12 h-12 text-emerald-500" />
+          </div>
+        </div>
+        <h2 className="text-4xl font-black uppercase tracking-tighter mb-4 text-white italic">¡PAGO RECIBIDO!</h2>
+        <p className="text-gray-400 font-bold text-sm uppercase tracking-widest leading-relaxed mb-10">
+          TU PEDIDO ESTÁ SIENDO PROCESADO. <br/>
+          RECIBIRÁS UNA CONFIRMACIÓN POR EMAIL EN BREVE.
+        </p>
+        <button 
+          onClick={onClose}
+          className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-500 hover:text-white transition-all transform active:scale-95 shadow-xl"
+        >
+          Excelente
+        </button>
       </motion.div>
     </>
   );

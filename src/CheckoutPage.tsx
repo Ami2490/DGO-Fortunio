@@ -36,6 +36,7 @@ interface CheckoutPageProps {
   userLevel?: string | null;
   userEmail?: string | null;
   supportPhone?: string;
+  config?: any;
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -49,15 +50,17 @@ export function CheckoutPage({
   userId = null,
   userLevel = null,
   userEmail = null,
-  supportPhone = '5491112345678', // Default si no viene de config
+  supportPhone = '5491112345678',
+  config
 }: CheckoutPageProps) {
   const [form, setForm] = useState({
     name: '',
     phone: '',
     address: '',
     note: '',
-    paymentMethod: 'whatsapp_manual', // whatsapp_manual | mp_simulated
-    subMethod: 'efectivo', // efectivo | transferencia | debito | credito
+    paymentMethod: config?.enabledPaymentMethods?.ualabis ? 'ualabis_pro' : 
+                   (config?.enabledPaymentMethods?.mercadopago !== false) ? 'mercadopago_pro' : 'whatsapp_manual',
+    subMethod: 'efectivo', 
   });
   
   const [couponCode, setCouponCode]     = useState('');
@@ -69,10 +72,6 @@ export function CheckoutPage({
   const [success, setSuccess]           = useState(false);
   const [orderNumber, setOrderNumber]   = useState('');
   const [errors, setErrors]             = useState<Record<string, string>>({});
-
-  // Simulación de Mercado Pago
-  const [mpStep, setMpStep] = useState(false);
-  const [cardData, setCardData] = useState({ number: '', expiry: '', cvc: '' });
 
   const subtotal = cart.reduce((s, i) => {
     const price = (i.wholesalePrice && i.quantity >= (i.wholesaleMinQuantity || 12)) 
@@ -143,12 +142,6 @@ export function CheckoutPage({
     if (!form.phone.trim())   errs.phone   = 'El teléfono es obligatorio';
     if (!form.address.trim()) errs.address = 'La dirección es obligatoria';
     
-    if (form.paymentMethod === 'mp_simulated' && mpStep) {
-      if (cardData.number.length < 16) errs.card = 'Número de tarjeta incompleto';
-      if (!cardData.expiry.includes('/')) errs.card = 'Vencimiento inválido';
-      if (cardData.cvc.length < 3) errs.card = 'CVV inválido';
-    }
-
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -212,7 +205,11 @@ export function CheckoutPage({
         discount,
         total,
         couponCode: couponOk ? (couponCode || '').toUpperCase() : null,
-        paymentMethod: `${form.paymentMethod}:${form.subMethod}`,
+        paymentMethod: form.paymentMethod === 'mercadopago_pro' 
+          ? 'mercadopago_pro' 
+          : form.paymentMethod === 'ualabis_pro' 
+            ? 'ualabis_pro' 
+            : `${form.paymentMethod}:${form.subMethod}`,
       };
 
       const orderId = await dbService.addOrder(order);
@@ -225,11 +222,57 @@ export function CheckoutPage({
           await requestPointsForOrder(userId, orderId, total);
         } catch (pointErr) {
           console.error('Error al registrar puntos:', pointErr);
-          // No bloqueamos el pedido por esto
         }
       }
 
       trackEvent(Events.CHECKOUT_COMPLETE, { orderId, total, items: cart.length }, userId);
+
+      // --- FLUJO MERCADO PAGO REAL ---
+      if (form.paymentMethod === 'mercadopago_pro') {
+        const response = await fetch('/.netlify/functions/create-preference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: orderId,
+            items: order.items,
+            customerEmail: userEmail || 'invitado@temp.com',
+            total: total
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Error al iniciar Mercado Pago');
+        }
+
+        const { init_point } = await response.json();
+        // Redirigir a Mercado Pago
+        window.location.href = init_point;
+        return; 
+      }
+
+      // --- FLUJO UALA BIS ---
+      if (form.paymentMethod === 'ualabis_pro') {
+        const response = await fetch('/.netlify/functions/create-ualabis-preference', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: orderId,
+            items: order.items,
+            customerEmail: userEmail || 'invitado@temp.com',
+            total: total
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Error al iniciar Ualá Bis');
+        }
+
+        const { checkout_url } = await response.json();
+        window.location.href = checkout_url;
+        return;
+      }
 
       // Si es flujo de WhatsApp, disparamos el mensaje
       if (form.paymentMethod === 'whatsapp_manual') {
@@ -237,10 +280,9 @@ export function CheckoutPage({
       }
 
       setSuccess(true);
-      setTimeout(onSuccess, 8000); // Damos más tiempo para leer el mensaje
+      setTimeout(onSuccess, 8000); 
     } catch (err: any) {
       console.error('Error al guardar pedido:', err);
-      // Extraemos el mensaje de error si es posible
       const errMsg = err?.message || 'Hubo un error al procesar el pedido.';
       setErrors({ submit: `Error: ${errMsg}. Por favor intentá de nuevo.` });
     }
@@ -322,8 +364,6 @@ export function CheckoutPage({
         {/* ── Columna Izquierda: Formularios ── */}
         <div className="lg:col-span-7 space-y-10">
 
-          {!mpStep ? (
-            <>
               {/* Sección 1: Datos Personales */}
               <section className="bg-[#111a24] rounded-[var(--br)] p-8 border border-white/5 shadow-xl">
                 <div className="flex items-center gap-3 mb-8">
@@ -407,46 +447,72 @@ export function CheckoutPage({
                   <h2 className="text-lg font-black italic uppercase tracking-tight">Forma de Pago</h2>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Opción WhatsApp */}
-                  <button
-                    onClick={() => setForm(f => ({ ...f, paymentMethod: 'whatsapp_manual', subMethod: 'efectivo' }))}
-                    className={`relative p-6 rounded-3xl border-2 text-left transition-all ${
-                      form.paymentMethod === 'whatsapp_manual'
-                        ? 'border-[var(--p)] bg-[var(--p)]/5 text-white'
-                        : 'border-white/5 bg-[#0a1118] text-gray-500 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${form.paymentMethod === 'whatsapp_manual' ? 'bg-[var(--p)]' : 'bg-white/5'}`}>
-                        <MessageSquare size={14} className={form.paymentMethod === 'whatsapp_manual' ? 'text-white' : 'text-gray-500'} />
+                  {(config?.enabledPaymentMethods?.whatsapp !== false) && (
+                    <button
+                      onClick={() => setForm(f => ({ ...f, paymentMethod: 'whatsapp_manual', subMethod: 'efectivo' }))}
+                      className={`relative p-6 rounded-3xl border-2 text-left transition-all ${
+                        form.paymentMethod === 'whatsapp_manual'
+                          ? 'border-[var(--p)] bg-[var(--p)]/5 text-white'
+                          : 'border-white/5 bg-[#0a1118] text-gray-500 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${form.paymentMethod === 'whatsapp_manual' ? 'bg-[var(--p)]' : 'bg-white/5'}`}>
+                          <MessageSquare size={14} className={form.paymentMethod === 'whatsapp_manual' ? 'text-white' : 'text-gray-500'} />
+                        </div>
+                        {form.paymentMethod === 'whatsapp_manual' && <CheckCircle size={16} className="text-[var(--p)]" />}
                       </div>
-                      {form.paymentMethod === 'whatsapp_manual' && <CheckCircle size={16} className="text-[var(--p)]" />}
-                    </div>
-                    <p className="text-[10px] font-black uppercase tracking-widest mb-1">Finalizar por</p>
-                    <p className="text-sm font-black italic uppercase tracking-tight">Efectivo / Transferencia</p>
-                    <p className="text-[9px] font-medium text-gray-400 mt-2 opacity-60 italic">Se coordina por WhatsApp</p>
-                  </button>
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-1">Finalizar por</p>
+                      <p className="text-sm font-black italic uppercase tracking-tight">Efectivo / Transf.</p>
+                      <p className="text-[9px] font-medium text-gray-400 mt-2 opacity-60 italic">Coordinar Chat</p>
+                    </button>
+                  )}
 
                   {/* Opción MP */}
-                  <button
-                    onClick={() => setForm(f => ({ ...f, paymentMethod: 'mp_simulated', subMethod: 'credito' }))}
-                    className={`relative p-6 rounded-3xl border-2 text-left transition-all ${
-                      form.paymentMethod === 'mp_simulated'
-                        ? 'border-[var(--p)] bg-[var(--p)]/5 text-white'
-                        : 'border-white/5 bg-[#0a1118] text-gray-500 hover:border-white/20'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${form.paymentMethod === 'mp_simulated' ? 'bg-[var(--p)]' : 'bg-white/5'}`}>
-                        <CardIcon size={14} className={form.paymentMethod === 'mp_simulated' ? 'text-white' : 'text-gray-500'} />
+                  {(config?.enabledPaymentMethods?.mercadopago !== false) && (
+                    <button
+                      onClick={() => setForm(f => ({ ...f, paymentMethod: 'mercadopago_pro', subMethod: 'online' }))}
+                      className={`relative p-6 rounded-3xl border-2 text-left transition-all ${
+                        form.paymentMethod === 'mercadopago_pro'
+                          ? 'border-[var(--p)] bg-[var(--p)]/5 text-white'
+                          : 'border-white/5 bg-[#0a1118] text-gray-500 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${form.paymentMethod === 'mercadopago_pro' ? 'bg-[#009EE3]' : 'bg-white/5'}`}>
+                          <Wallet size={14} className="text-white" />
+                        </div>
+                        {form.paymentMethod === 'mercadopago_pro' && <CheckCircle size={16} className="text-[var(--p)]" />}
                       </div>
-                      {form.paymentMethod === 'mp_simulated' && <CheckCircle size={16} className="text-[var(--p)]" />}
-                    </div>
-                    <p className="text-[10px] font-black uppercase tracking-widest mb-1">Pago Online</p>
-                    <p className="text-sm font-black italic uppercase tracking-tight">Débito / Crédito</p>
-                    <p className="text-[9px] font-medium text-gray-400 mt-2 opacity-60 italic">M. Pago Checkout Pro</p>
-                  </button>
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-1">Pago Online</p>
+                      <p className="text-sm font-black italic uppercase tracking-tight">Mercado Pago</p>
+                      <p className="text-[9px] font-medium text-gray-400 mt-2 opacity-60 italic">Pasarela Oficial</p>
+                    </button>
+                  )}
+
+                  {/* Opción Ualá Bis */}
+                  {(config?.enabledPaymentMethods?.ualabis !== false) && (
+                    <button
+                      onClick={() => setForm(f => ({ ...f, paymentMethod: 'ualabis_pro', subMethod: 'online' }))}
+                      className={`relative p-6 rounded-3xl border-2 text-left transition-all ${
+                        form.paymentMethod === 'ualabis_pro'
+                          ? 'border-[var(--p)] bg-[var(--p)]/5 text-white'
+                          : 'border-white/5 bg-[#0a1118] text-gray-500 hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${form.paymentMethod === 'ualabis_pro' ? 'bg-[#00D1FF]' : 'bg-white/5'}`}>
+                          <CardIcon size={14} className="text-white" />
+                        </div>
+                        {form.paymentMethod === 'ualabis_pro' && <CheckCircle size={16} className="text-[var(--p)]" />}
+                      </div>
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-1">Pago Online</p>
+                      <p className="text-sm font-black italic uppercase tracking-tight">Ualá Bis</p>
+                      <p className="text-[9px] font-bold text-emerald-500 mt-2 italic">¡Más cuotas!</p>
+                    </button>
+                  )}
                 </div>
 
                 {/* Sub-selector según el método */}
@@ -475,81 +541,6 @@ export function CheckoutPage({
                   )}
                 </AnimatePresence>
               </section>
-            </>
-          ) : (
-            /* PASO DE TARJETA (MERCADO PAGO SIMULADO) */
-            <motion.section 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-[#111a24] rounded-[var(--br)] p-10 border border-white/5 shadow-xl"
-            >
-              <div className="flex items-center justify-between mb-10">
-                <button onClick={() => setMpStep(false)} className="text-[10px] font-black uppercase tracking-widest text-[#666] hover:text-white flex items-center gap-2 transition-colors">
-                  <ArrowLeft size={14} /> Atrás
-                </button>
-                <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/Mercado_Pago_logo.svg" className="h-5 opacity-80" alt="MP" />
-              </div>
-
-              <div className="max-w-md mx-auto space-y-8">
-                <h2 className="text-2xl font-black italic uppercase tracking-tight text-center">Datos de Pago</h2>
-                
-                {/* Tarjeta Visual (Simulada) */}
-                <div className="aspect-[1.6/1] bg-gradient-to-br from-indigo-600 via-indigo-500 to-indigo-800 rounded-3xl p-8 relative shadow-2xl overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl group-hover:bg-white/20 transition-all duration-700" />
-                  <div className="flex justify-between items-start mb-10">
-                    <CardIcon size={32} className="text-white/60" />
-                    <div className="w-12 h-10 bg-yellow-400/80 rounded-lg blur-[0.5px]" />
-                  </div>
-                  <p className="text-2xl font-mono tracking-[0.2em] text-white/90 mb-8 truncate">
-                    {cardData.number || '•••• •••• •••• ••••'}
-                  </p>
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <p className="text-[8px] uppercase tracking-widest text-white/40 mb-1">Titular</p>
-                      <p className="text-xs font-bold uppercase tracking-widest text-white">{form.name || 'TU NOMBRE'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[8px] uppercase tracking-widest text-white/40 mb-1">Vence</p>
-                      <p className="text-xs font-bold uppercase tracking-widest text-white">{cardData.expiry || 'MM/AA'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Formulario Tarjeta */}
-                <div className="space-y-4">
-                  <div>
-                    <input
-                      type="text"
-                      maxLength={16}
-                      placeholder="Número de tarjeta"
-                      value={cardData.number}
-                      onChange={e => setCardData(c => ({ ...c, number: e.target.value.replace(/\D/g, '') }))}
-                      className="w-full bg-[#0a1118] border border-white/10 rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:border-[var(--p)] transition-all"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <input
-                      placeholder="Venc. (MM/AA)"
-                      maxLength={5}
-                      value={cardData.expiry}
-                      onChange={e => setCardData(c => ({ ...c, expiry: e.target.value }))}
-                      className="bg-[#0a1118] border border-white/10 rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:border-[var(--p)] transition-all"
-                    />
-                    <input
-                      placeholder="CVV"
-                      maxLength={3}
-                      type="password"
-                      value={cardData.cvc}
-                      onChange={e => setCardData(c => ({ ...c, cvc: e.target.value.replace(/\D/g, '') }))}
-                      className="bg-[#0a1118] border border-white/10 rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:border-[var(--p)] transition-all"
-                    />
-                  </div>
-                </div>
-                
-                {errors.card && <p className="text-[9px] text-red-500 font-black uppercase text-center mt-2 tracking-widest">{errors.card}</p>}
-              </div>
-            </motion.section>
-          )}
         </div>
 
         {/* ── Columna Derecha: Detalle de Orden ── */}
@@ -694,13 +685,7 @@ export function CheckoutPage({
             )}
 
             <button
-              onClick={() => {
-                if (form.paymentMethod === 'mp_simulated' && !mpStep) {
-                  if (validate()) setMpStep(true);
-                } else {
-                  handleSubmit();
-                }
-              }}
+              onClick={handleSubmit}
               disabled={submitting || cart.length === 0}
               style={{ backgroundColor: 'var(--p)' }}
               className="w-full py-5 rounded-[var(--br)] text-white font-black italic uppercase tracking-tighter text-lg transition-all hover:brightness-110 shadow-xl shadow-white/5 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
@@ -712,10 +697,12 @@ export function CheckoutPage({
                 </>
               ) : (
                 <>
-                  {form.paymentMethod === 'whatsapp_manual' ? (
-                     <><ExternalLink size={20} /> Pedir por WhatsApp</>
+                  {form.paymentMethod === 'ualabis_pro' ? (
+                    <><CardIcon size={20} /> Pagar con Ualá Bis</>
+                  ) : form.paymentMethod === 'mercadopago_pro' ? (
+                    <><Wallet size={20} /> Pagar con Mercado Pago</>
                   ) : (
-                    <>{mpStep ? <CheckCircle size={20} /> : <CardIcon size={20} />} {mpStep ? 'Confirmar Pago' : 'Pagar con Tarjeta'}</>
+                    <><ExternalLink size={20} /> Pedir por WhatsApp</>
                   )}
                 </>
               )}

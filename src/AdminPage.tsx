@@ -176,6 +176,11 @@ export default function AdminPage({ onBack }: AdminPageProps) {
       setPopulating(true);
       try {
         await setDoc(doc(db, 'config', 'siteConfig'), {
+          enabledPaymentMethods: {
+            whatsapp: true,
+            mercadopago: true,
+            ualabis: true
+          },
           nav: [
             { label: 'INICIO', path: '/', visible: true },
             { label: 'CATEGORÍAS', path: '#categorias', visible: true },
@@ -1583,6 +1588,212 @@ export default function AdminPage({ onBack }: AdminPageProps) {
                       <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-relaxed">
                         Este ID permitirá a Facebook rastrear eventos de visita y conversión automáticamente.
                       </p>
+                    </div>
+                  </div>
+
+                  {/* Medios de Pago */}
+                  <div className="bg-[#111a24] p-10 rounded-[40px] border border-white/10 shadow-xl shadow-emerald-500/5">
+                    <div className="flex items-center gap-3 mb-8">
+                      <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/20">
+                        <DollarSign className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-lg font-black text-white uppercase tracking-widest">Medios de Pago</h3>
+                    </div>
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between p-4 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">WhatsApp (Manual)</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic">Coordinar por chat</p>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const current = config.enabledPaymentMethods?.whatsapp !== false;
+                            setConfig({...config, enabledPaymentMethods: {...(config.enabledPaymentMethods || {}), whatsapp: !current}});
+                          }}
+                          className={`w-12 h-6 rounded-full transition-all relative ${(config.enabledPaymentMethods?.whatsapp !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config.enabledPaymentMethods?.whatsapp !== false) ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Mercado Pago</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic">Pasarela Automática</p>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const current = config.enabledPaymentMethods?.mercadopago !== false;
+                            setConfig({...config, enabledPaymentMethods: {...(config.enabledPaymentMethods || {}), mercadopago: !current}});
+                          }}
+                          className={`w-12 h-6 rounded-full transition-all relative ${(config.enabledPaymentMethods?.mercadopago !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config.enabledPaymentMethods?.mercadopago !== false) ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {config.enabledPaymentMethods?.mercadopago !== false && (
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+                          <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Configuración Mercado Pago</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Public Key</label>
+                              <input 
+                                type="text"
+                                autoComplete="off"
+                                name="mp-public-key"
+                                value={config.paymentCredentials?.mercadopago?.publicKey || ''}
+                                onChange={(e) => setConfig({
+                                  ...config, 
+                                  paymentCredentials: {
+                                    ...config.paymentCredentials,
+                                    mercadopago: { ...config.paymentCredentials?.mercadopago, publicKey: e.target.value }
+                                  }
+                                })}
+                                placeholder="APP_USR-..."
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Access Token (Secreto)</label>
+                              <input 
+                                type="password"
+                                autoComplete="new-password"
+                                name="mp-access-token"
+                                value={config.paymentCredentials?.mercadopago?.accessToken || ''}
+                                onChange={(e) => setConfig({
+                                  ...config, 
+                                  paymentCredentials: {
+                                    ...config.paymentCredentials,
+                                    mercadopago: { ...config.paymentCredentials?.mercadopago, accessToken: e.target.value }
+                                  }
+                                })}
+                                placeholder="APP_USR-..."
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between p-4 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Ualá Bis</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic text-emerald-500">Pasarela Real (NUEVO)</p>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const current = config.enabledPaymentMethods?.ualabis !== false;
+                            setConfig({...config, enabledPaymentMethods: {...(config.enabledPaymentMethods || {}), ualabis: !current}});
+                          }}
+                          className={`w-12 h-6 rounded-full transition-all relative ${(config.enabledPaymentMethods?.ualabis !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config.enabledPaymentMethods?.ualabis !== false) ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {config.enabledPaymentMethods?.ualabis !== false && (
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+                          <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Configuración Ualá Bis</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Access Token (Bearer)</label>
+                              <input 
+                                type="password"
+                                value={config.paymentCredentials?.ualabis?.accessToken || ''}
+                                onChange={(e) => setConfig({
+                                  ...config, 
+                                  paymentCredentials: {
+                                    ...config.paymentCredentials,
+                                    ualabis: { ...config.paymentCredentials?.ualabis, accessToken: e.target.value }
+                                  }
+                                })}
+                                placeholder="eyJhbG..."
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Usuario (Mail Ualá)</label>
+                              <input 
+                                type="text"
+                                value={config.paymentCredentials?.ualabis?.userName || ''}
+                                onChange={(e) => setConfig({
+                                  ...config, 
+                                  paymentCredentials: {
+                                    ...config.paymentCredentials,
+                                    ualabis: { ...config.paymentCredentials?.ualabis, userName: e.target.value }
+                                  }
+                                })}
+                                placeholder="usuario@mail.com"
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Notificaciones y Webhooks */}
+                      <div className="mt-10 pt-10 border-t border-white/5 space-y-8">
+                        <div>
+                          <h4 className="text-[11px] font-black text-white uppercase tracking-[0.2em] mb-4">Configuración Vital (Webhooks & Emails)</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">URL del Sitio (Para Webhooks)</label>
+                              <input 
+                                type="text"
+                                autoComplete="off"
+                                name="site-url"
+                                value={config.siteUrl || ''}
+                                onChange={(e) => setConfig({...config, siteUrl: e.target.value})}
+                                placeholder="https://distribuidoradgo.com.ar"
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                              />
+                              <p className="text-[7px] text-gray-600 mt-1 uppercase">Indispensable para que los pagos se confirmen solos.</p>
+                            </div>
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Email remitente (Gmail)</label>
+                              <input 
+                                type="text"
+                                value={config.notificationEmail || ''}
+                                onChange={(e) => setConfig({...config, notificationEmail: e.target.value})}
+                                placeholder="tienda@gmail.com"
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Password de Aplicación (Gmail)</label>
+                              <input 
+                                type="password"
+                                value={config.notificationPass || ''}
+                                onChange={(e) => setConfig({...config, notificationPass: e.target.value})}
+                                placeholder="xxxx xxxx xxxx xxxx"
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                              />
+                              <p className="text-[7px] text-emerald-500/50 mt-1 uppercase">No es tu clave de Gmail. Es la clave de 16 dígitos generada en Google Account.</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {config.siteUrl && (
+                          <div className="p-6 bg-emerald-500/5 rounded-[30px] border border-emerald-500/20">
+                            <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-4 italic">URLs para pegar en tus Pasarelas:</p>
+                            <div className="space-y-4">
+                              <div>
+                                <p className="text-[7px] font-black text-gray-500 uppercase mb-1">Mercado Pago Webhook URL:</p>
+                                <code className="block bg-black/60 p-3 rounded-xl text-[9px] text-emerald-300 break-all border border-white/5">
+                                  {config.siteUrl.replace(/\/$/, '')}/.netlify/functions/webhook
+                                </code>
+                              </div>
+                              <div>
+                                <p className="text-[7px] font-black text-gray-500 uppercase mb-1">Ualá Bis Webhook URL:</p>
+                                <code className="block bg-black/60 p-3 rounded-xl text-[9px] text-emerald-300 break-all border border-white/5">
+                                  {config.siteUrl.replace(/\/$/, '')}/.netlify/functions/webhook-uala
+                                </code>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
