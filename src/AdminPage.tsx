@@ -13,13 +13,15 @@ import {
   TrendingUp, XCircle, Truck, ChevronRight, Edit3,
   CheckCircle, Clock, AlertCircle, RefreshCw, X, Loader2,
   DollarSign, Users, ShoppingCart, ChevronDown, Image as ImageIcon,
-  FileSpreadsheet, CheckCircle2, Download, CloudUpload, Trash, Upload, MessageSquare
+  FileSpreadsheet, CheckCircle2, Download, CloudUpload, Trash, Upload, MessageSquare,
+  Palette, CreditCard, Layout
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
 import AnalyticsView from './components/admin/AnalyticsView';
+import ThemePanel from './components/ThemePanel';
 import { dbService, type Order, type Product } from './services/dbService';
 import { getAllCoupons, createCoupon, deleteCoupon, toggleCoupon, type Coupon } from './services/couponService';
 import { getPendingApprovals, approvePoints, adjustPoints, type PointTransaction } from './services/pointService';
@@ -52,6 +54,7 @@ export default function AdminPage({ onBack }: AdminPageProps) {
 
   // Auth & config
   const [activeTab, setActiveTab] = useState('inicio');
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [user,       setUser]      = useState<any>(null);
   const [config,     setConfig]    = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
@@ -170,6 +173,15 @@ export default function AdminPage({ onBack }: AdminPageProps) {
   const showConfirm = (title: string, message: string, onConfirm: () => void) =>
     setModal({ show: true, title, message, onConfirm, type: 'confirm' });
 
+  const toggleMode = () => setIsDarkMode(!isDarkMode);
+  
+  const handleThemeChange = (newTheme: any) => {
+    setConfig((prev: any) => ({
+      ...prev,
+      theme: newTheme
+    }));
+  };
+
   // ── Poblar DB ───────────────────────────────────────────────────────────────
   const populateDatabase = async () => {
     showConfirm('¿Poblar Base de Datos?', 'Esto pobla la base de datos con valores por defecto. Puede sobrescribir configuraciones existentes.', async () => {
@@ -230,7 +242,7 @@ export default function AdminPage({ onBack }: AdminPageProps) {
     });
   };
 
-  const saveConfig = async () => {
+  const handleSaveConfig = async () => {
     if (!config) return;
     setSaving(true);
     try {
@@ -402,6 +414,8 @@ export default function AdminPage({ onBack }: AdminPageProps) {
           <SidebarItem id="niveles"   icon={Star}            label="Niveles" />
           <SidebarItem id="analitica" icon={BarChart3}       label="Analítica" />
           <SidebarItem id="categorias"icon={Grid}            label="Categorías" />
+          <SidebarItem id="apariencia"icon={Palette}         label="Apariencia" />
+          <SidebarItem id="pagos"     icon={CreditCard}      label="Pagos" />
           <SidebarItem id="ajustes"   icon={Settings}        label="Ajustes" />
         </nav>
 
@@ -1450,6 +1464,404 @@ export default function AdminPage({ onBack }: AdminPageProps) {
           </div>
         )}
 
+        {/* ══════════ APARIENCIA ══════════ */}
+        {activeTab === 'apariencia' && (
+          <div className="space-y-12">
+            {!config ? (
+              <div className="bg-[#111a24] p-12 rounded-[40px] border border-white/5 text-center flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-20 h-20 bg-orange-500/10 rounded-3xl flex items-center justify-center mb-8">
+                  <Palette className="w-10 h-10 text-orange-500" />
+                </div>
+                <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Base de Datos Vacía</h2>
+                <p className="text-gray-500 text-sm max-w-md mb-10 font-medium">No se detectó ninguna configuración. Inicializá el sistema en la pestaña de Ajustes.</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-black text-emerald-500 italic uppercase tracking-tighter">Apariencia del Sitio</h2>
+                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Configurá los colores y estilos globales de la plataforma</p>
+                  </div>
+                </div>
+                <ThemePanel 
+                  inline 
+                  isDarkMode={isDarkMode}
+                  onToggleMode={toggleMode}
+                  onThemeChange={handleThemeChange}
+                  currentTheme={config?.theme}
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ══════════ PAGOS ══════════ */}
+        {activeTab === 'pagos' && (
+          <div className="space-y-12">
+            {!config ? (
+              <div className="bg-[#111a24] p-12 rounded-[40px] border border-white/5 text-center flex flex-col items-center justify-center min-h-[400px]">
+                <div className="w-20 h-20 bg-emerald-500/10 rounded-3xl flex items-center justify-center mb-8">
+                  <CreditCard className="w-10 h-10 text-emerald-500" />
+                </div>
+                <h2 className="text-3xl font-black text-white uppercase tracking-tighter mb-4">Base de Datos Vacía</h2>
+                <p className="text-gray-500 text-sm max-w-md mb-10 font-medium">No se detectó ninguna configuración. Inicializá el sistema en la pestaña de Ajustes.</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-black text-emerald-500 italic uppercase tracking-tighter">Pasarelas de Pago</h2>
+                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest">Configurá los métodos de pago y credenciales</p>
+                  </div>
+                  <button 
+                    onClick={handleSaveConfig} 
+                    disabled={saving}
+                    className="flex items-center gap-3 bg-emerald-500 text-white px-8 py-4 rounded-2xl font-black hover:bg-emerald-600 disabled:opacity-50 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest text-xs"
+                  >
+                    <Save className="w-5 h-5" /> {saving ? 'Guardando...' : 'Guardar Cambios'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                  {/* Notificaciones y Webhooks */}
+                  <div className="bg-[#111a24] p-10 rounded-[40px] border border-white/10 shadow-xl shadow-blue-500/5">
+                    <div className="flex items-center gap-3 mb-8">
+                      <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-600/20">
+                        <Bell className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-lg font-black text-white uppercase tracking-widest">Notificaciones & Webhooks</h3>
+                    </div>
+                    <div className="space-y-6">
+                      <div>
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">URL del Sitio (Para Webhooks)</label>
+                        <input 
+                          type="text"
+                          autoComplete="off"
+                          name="site-url"
+                          value={config?.siteUrl || ''}
+                          onChange={(e) => setConfig({...config, siteUrl: e.target.value})}
+                          placeholder="https://distribuidoradgo.com.ar"
+                          className="w-full bg-[#0a1118] border border-white/5 rounded-2xl px-6 py-4 text-xs font-bold text-white outline-none focus:border-blue-500/50 transition-all placeholder:text-gray-700" 
+                        />
+                        <p className="text-[7px] text-gray-600 mt-2 uppercase font-black">Indispensable para que los pagos se confirmen solos.</p>
+                      </div>
+
+                      <div>
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Email remitente (Gmail)</label>
+                        <input 
+                          type="text"
+                          value={config?.notificationEmail || ''}
+                          onChange={(e) => setConfig({...config, notificationEmail: e.target.value})}
+                          placeholder="tienda@gmail.com"
+                          className="w-full bg-[#0a1118] border border-white/5 rounded-2xl px-6 py-4 text-xs font-bold text-white outline-none focus:border-blue-500/50 transition-all" 
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Password de Aplicación (Gmail)</label>
+                        <input 
+                          type="password"
+                          value={config?.notificationPass || ''}
+                          onChange={(e) => setConfig({...config, notificationPass: e.target.value})}
+                          placeholder="xxxx xxxx xxxx xxxx"
+                          className="w-full bg-[#0a1118] border border-white/5 rounded-2xl px-6 py-4 text-xs font-bold text-white outline-none focus:border-blue-500/50 transition-all" 
+                        />
+                        <p className="text-[7px] text-emerald-500/50 mt-2 uppercase font-black tracking-tighter">No es tu clave de Gmail. Es la clave de 16 dígitos generada en Google Account.</p>
+                      </div>
+
+                      {config?.siteUrl && (
+                        <div className="p-6 bg-emerald-500/5 rounded-[30px] border border-emerald-500/20 space-y-4">
+                          <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest italic">URLs para pegar en tus Pasarelas:</p>
+                          <div>
+                            <p className="text-[7px] font-black text-gray-500 uppercase mb-1">Mercado Pago Webhook URL:</p>
+                            <code className="block bg-black/60 p-3 rounded-xl text-[9px] text-emerald-300 break-all border border-white/5 font-mono">
+                              {config.siteUrl.replace(/\/$/, '')}/.netlify/functions/webhook
+                            </code>
+                          </div>
+                          <div>
+                            <p className="text-[7px] font-black text-gray-500 uppercase mb-1">Ualá Bis Webhook URL:</p>
+                            <code className="block bg-black/60 p-3 rounded-xl text-[9px] text-emerald-300 break-all border border-white/5 font-mono">
+                              {config.siteUrl.replace(/\/$/, '')}/.netlify/functions/webhook-uala
+                            </code>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Medios de Pago */}
+                  <div className="bg-[#111a24] p-10 rounded-[40px] border border-white/10 shadow-xl shadow-emerald-500/5">
+                    <div className="flex items-center gap-3 mb-8">
+                      <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/20">
+                        <DollarSign className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-lg font-black text-white uppercase tracking-widest">Métodos de Cobro</h3>
+                    </div>
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between p-4 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">WhatsApp (Manual)</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic">Coordinar por chat</p>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const current = config?.enabledPaymentMethods?.whatsapp !== false;
+                            setConfig({...config, enabledPaymentMethods: {...(config.enabledPaymentMethods || {}), whatsapp: !current}});
+                          }}
+                          className={`w-12 h-6 rounded-full transition-all relative ${(config?.enabledPaymentMethods?.whatsapp !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config?.enabledPaymentMethods?.whatsapp !== false) ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Mercado Pago</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic">Pasarela Automática</p>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const current = config?.enabledPaymentMethods?.mercadopago !== false;
+                            setConfig({...config, enabledPaymentMethods: {...(config.enabledPaymentMethods || {}), mercadopago: !current}});
+                          }}
+                          className={`w-12 h-6 rounded-full transition-all relative ${(config?.enabledPaymentMethods?.mercadopago !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config?.enabledPaymentMethods?.mercadopago !== false) ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {config?.enabledPaymentMethods?.mercadopago !== false && (
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+                          <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Configuración Mercado Pago</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Public Key</label>
+                              <input 
+                                type="text"
+                                autoComplete="off"
+                                name="mp-public-key"
+                                value={config?.paymentCredentials?.mercadopago?.publicKey || ''}
+                                onChange={(e) => setConfig({
+                                  ...config, 
+                                  paymentCredentials: {
+                                    ...config.paymentCredentials,
+                                    mercadopago: { ...config.paymentCredentials?.mercadopago, publicKey: e.target.value }
+                                  }
+                                })}
+                                placeholder="APP_USR-..."
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Access Token (Secreto)</label>
+                              <input 
+                                type="password"
+                                autoComplete="new-password"
+                                name="mp-access-token"
+                                value={config?.paymentCredentials?.mercadopago?.accessToken || ''}
+                                onChange={(e) => setConfig({
+                                  ...config, 
+                                  paymentCredentials: {
+                                    ...config.paymentCredentials,
+                                    mercadopago: { ...config.paymentCredentials?.mercadopago, accessToken: e.target.value }
+                                  }
+                                })}
+                                placeholder="APP_USR-..."
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between p-4 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Ualá Bis</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic text-emerald-500">Pasarela Real (NUEVO)</p>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const current = config?.enabledPaymentMethods?.ualabis !== false;
+                            setConfig({...config, enabledPaymentMethods: {...(config.enabledPaymentMethods || {}), ualabis: !current}});
+                          }}
+                          className={`w-12 h-6 rounded-full transition-all relative ${(config?.enabledPaymentMethods?.ualabis !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config?.enabledPaymentMethods?.ualabis !== false) ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {config?.enabledPaymentMethods?.ualabis !== false && (
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
+                          <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Configuración Ualá Bis</p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Access Token (Bearer)</label>
+                              <input 
+                                type="password"
+                                value={config?.paymentCredentials?.ualabis?.accessToken || ''}
+                                onChange={(e) => setConfig({
+                                  ...config, 
+                                  paymentCredentials: {
+                                    ...config.paymentCredentials,
+                                    ualabis: { ...config.paymentCredentials?.ualabis, accessToken: e.target.value }
+                                  }
+                                })}
+                                placeholder="eyJhbG..."
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Usuario (Mail Ualá)</label>
+                              <input 
+                                type="text"
+                                value={config?.paymentCredentials?.ualabis?.userName || ''}
+                                onChange={(e) => setConfig({
+                                  ...config, 
+                                  paymentCredentials: {
+                                    ...config.paymentCredentials,
+                                    ualabis: { ...config.paymentCredentials?.ualabis, userName: e.target.value }
+                                  }
+                                })}
+                                placeholder="usuario@mail.com"
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                </div>
+              </div>
+
+                {/* ─── CONFIGURACIÓN DE CAMPOS DEL CHECKOUT ─── */}
+                <div className="mt-12">
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-amber-500/20">
+                      <Layout className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-white uppercase tracking-widest">Campos del Formulario</h3>
+                      <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest italic">Activá o desactivá los datos que le pedís al cliente</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#111a24] p-10 rounded-[40px] border border-white/10 shadow-xl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      
+                      {/* Campo: Nombre Completo */}
+                      <div className="flex items-center justify-between p-5 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Nombre y Apellido</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase italic">Identificación básica</p>
+                        </div>
+                        <button 
+                          onClick={() => setConfig({...config, checkoutFields: {...(config.checkoutFields || {}), name: !(config.checkoutFields?.name !== false)}})}
+                          className={`w-12 h-6 rounded-full transition-all relative ${(config.checkoutFields?.name !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config.checkoutFields?.name !== false) ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {/* Campo: Teléfono */}
+                      <div className="flex items-center justify-between p-5 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">WhatsApp / Teléfono</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase italic">Contacto directo</p>
+                        </div>
+                        <button 
+                          onClick={() => setConfig({...config, checkoutFields: { ...(config.checkoutFields || {}), phone: !(config.checkoutFields?.phone !== false) }})}
+                          className={`w-12 h-6 rounded-full transition-all relative ${(config.checkoutFields?.phone !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config.checkoutFields?.phone !== false) ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {/* Campo: Calle */}
+                      <div className="flex items-center justify-between p-5 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Calle / Dirección</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase italic">Ubicación de entrega</p>
+                        </div>
+                        <button 
+                          onClick={() => setConfig({...config, checkoutFields: { ...(config.checkoutFields || {}), street: !!config.checkoutFields?.street }})}
+                          className={`w-12 h-6 rounded-full transition-all relative ${config.checkoutFields?.street ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                          onClickCapture={(e) => {
+                             e.stopPropagation();
+                             setConfig({...config, checkoutFields: { ...(config.checkoutFields || {}), street: !config.checkoutFields?.street }});
+                          }}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${config.checkoutFields?.street ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {/* Campo: Número */}
+                      <div className="flex items-center justify-between p-5 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Altura / Número</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase italic">Numeración exacta</p>
+                        </div>
+                        <button 
+                          onClick={() => setConfig({...config, checkoutFields: { ...(config.checkoutFields || {}), number: !config.checkoutFields?.number }})}
+                          className={`w-12 h-6 rounded-full transition-all relative ${config.checkoutFields?.number ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${config.checkoutFields?.number ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {/* Campo: Localidad */}
+                      <div className="flex items-center justify-between p-5 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Localidad / Ciudad</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase italic">Zona de envío</p>
+                        </div>
+                        <button 
+                          onClick={() => setConfig({...config, checkoutFields: { ...(config.checkoutFields || {}), locality: !config.checkoutFields?.locality }})}
+                          className={`w-12 h-6 rounded-full transition-all relative ${config.checkoutFields?.locality ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${config.checkoutFields?.locality ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {/* Campo: Código Postal */}
+                      <div className="flex items-center justify-between p-5 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Código Postal</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase italic">Filtro de zona regional</p>
+                        </div>
+                        <button 
+                          onClick={() => setConfig({...config, checkoutFields: { ...(config.checkoutFields || {}), zipCode: !config.checkoutFields?.zipCode }})}
+                          className={`w-12 h-6 rounded-full transition-all relative ${config.checkoutFields?.zipCode ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${config.checkoutFields?.zipCode ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                      {/* Campo: Notas */}
+                      <div className="flex items-center justify-between p-5 bg-[#0a1118] rounded-2xl border border-white/5">
+                        <div>
+                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Notas de Pedido</p>
+                          <p className="text-[9px] font-bold text-gray-500 uppercase italic">Aclaraciones del cliente</p>
+                        </div>
+                        <button 
+                          onClick={() => setConfig({...config, checkoutFields: { ...(config.checkoutFields || {}), note: !(config.checkoutFields?.note !== false) }})}
+                          className={`w-12 h-6 rounded-full transition-all relative ${(config.checkoutFields?.note !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config.checkoutFields?.note !== false) ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+
+                    </div>
+                    <div className="mt-8 p-6 bg-blue-500/5 rounded-3xl border border-blue-500/10">
+                      <p className="text-[10px] text-blue-400 font-bold uppercase tracking-widest leading-relaxed">
+                        ⚠️ Nota: Si desactivás "Calle" y "Localidad", el sistema volverá a pedir una "Dirección" única como campo genérico obligatorio.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* ══════════ AJUSTES ══════════ */}
         {activeTab === 'ajustes' && (
@@ -1480,7 +1892,7 @@ export default function AdminPage({ onBack }: AdminPageProps) {
                         <Bell className="w-4 h-4" /> {populating ? 'Poblando...' : 'Poblar DB (Default)'}
                       </button>
                     )}
-                    <button onClick={saveConfig} disabled={saving} className="flex items-center gap-2 bg-emerald-500 text-white px-8 py-4 rounded-2xl font-black hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest text-xs">
+                    <button onClick={handleSaveConfig} disabled={saving} className="flex items-center gap-2 bg-emerald-500 text-white px-8 py-4 rounded-2xl font-black hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-xl shadow-emerald-500/20 uppercase tracking-widest text-xs">
                       <Save className="w-4 h-4" /> {saving ? 'Guardando...' : 'Guardar Cambios'}
                     </button>
                   </div>
@@ -1514,32 +1926,7 @@ export default function AdminPage({ onBack }: AdminPageProps) {
                     </div>
                   </div>
 
-                  {/* Branding */}
-                  <div className="bg-[#111a24] p-10 rounded-[40px] border border-white/5">
-                    <h3 className="text-lg font-black text-white uppercase tracking-widest mb-8">Branding</h3>
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Color Primario</label>
-                          <div className="flex gap-2">
-                            <input type="color" value={config.theme.primaryColor} onChange={e => setConfig({...config, theme: {...config.theme, primaryColor: e.target.value}})} className="w-10 h-10 rounded-xl border-none cursor-pointer bg-transparent" />
-                            <input type="text"  value={config.theme.primaryColor} onChange={e => setConfig({...config, theme: {...config.theme, primaryColor: e.target.value}})} className="bg-[#0a1118] border border-white/5 rounded-xl px-4 text-[10px] font-black flex-1 text-white" />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Color Secundario</label>
-                          <div className="flex gap-2">
-                            <input type="color" value={config.theme.secondaryColor} onChange={e => setConfig({...config, theme: {...config.theme, secondaryColor: e.target.value}})} className="w-10 h-10 rounded-xl border-none cursor-pointer bg-transparent" />
-                            <input type="text"  value={config.theme.secondaryColor} onChange={e => setConfig({...config, theme: {...config.theme, secondaryColor: e.target.value}})} className="bg-[#0a1118] border border-white/5 rounded-xl px-4 text-[10px] font-black flex-1 text-white" />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Border Radius</label>
-                          <input type="text" value={config.theme.borderRadius} onChange={e => setConfig({...config, theme: {...config.theme, borderRadius: e.target.value}})} className="w-full bg-[#0a1118] border border-white/5 rounded-xl px-4 py-3 text-[10px] font-black text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+
 
                   {/* Estética de Categorías */}
                   <div className="bg-[#111a24] p-10 rounded-[40px] border border-white/5">
@@ -1591,211 +1978,7 @@ export default function AdminPage({ onBack }: AdminPageProps) {
                     </div>
                   </div>
 
-                  {/* Medios de Pago */}
-                  <div className="bg-[#111a24] p-10 rounded-[40px] border border-white/10 shadow-xl shadow-emerald-500/5">
-                    <div className="flex items-center gap-3 mb-8">
-                      <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-600/20">
-                        <DollarSign className="w-5 h-5" />
-                      </div>
-                      <h3 className="text-lg font-black text-white uppercase tracking-widest">Medios de Pago</h3>
-                    </div>
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between p-4 bg-[#0a1118] rounded-2xl border border-white/5">
-                        <div>
-                          <p className="text-[10px] font-black text-white uppercase tracking-widest">WhatsApp (Manual)</p>
-                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic">Coordinar por chat</p>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            const current = config.enabledPaymentMethods?.whatsapp !== false;
-                            setConfig({...config, enabledPaymentMethods: {...(config.enabledPaymentMethods || {}), whatsapp: !current}});
-                          }}
-                          className={`w-12 h-6 rounded-full transition-all relative ${(config.enabledPaymentMethods?.whatsapp !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
-                        >
-                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config.enabledPaymentMethods?.whatsapp !== false) ? 'left-7' : 'left-1'}`} />
-                        </button>
-                      </div>
 
-                      <div className="flex items-center justify-between p-4 bg-[#0a1118] rounded-2xl border border-white/5">
-                        <div>
-                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Mercado Pago</p>
-                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic">Pasarela Automática</p>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            const current = config.enabledPaymentMethods?.mercadopago !== false;
-                            setConfig({...config, enabledPaymentMethods: {...(config.enabledPaymentMethods || {}), mercadopago: !current}});
-                          }}
-                          className={`w-12 h-6 rounded-full transition-all relative ${(config.enabledPaymentMethods?.mercadopago !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
-                        >
-                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config.enabledPaymentMethods?.mercadopago !== false) ? 'left-7' : 'left-1'}`} />
-                        </button>
-                      </div>
-
-                      {config.enabledPaymentMethods?.mercadopago !== false && (
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
-                          <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Configuración Mercado Pago</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Public Key</label>
-                              <input 
-                                type="text"
-                                autoComplete="off"
-                                name="mp-public-key"
-                                value={config.paymentCredentials?.mercadopago?.publicKey || ''}
-                                onChange={(e) => setConfig({
-                                  ...config, 
-                                  paymentCredentials: {
-                                    ...config.paymentCredentials,
-                                    mercadopago: { ...config.paymentCredentials?.mercadopago, publicKey: e.target.value }
-                                  }
-                                })}
-                                placeholder="APP_USR-..."
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Access Token (Secreto)</label>
-                              <input 
-                                type="password"
-                                autoComplete="new-password"
-                                name="mp-access-token"
-                                value={config.paymentCredentials?.mercadopago?.accessToken || ''}
-                                onChange={(e) => setConfig({
-                                  ...config, 
-                                  paymentCredentials: {
-                                    ...config.paymentCredentials,
-                                    mercadopago: { ...config.paymentCredentials?.mercadopago, accessToken: e.target.value }
-                                  }
-                                })}
-                                placeholder="APP_USR-..."
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between p-4 bg-[#0a1118] rounded-2xl border border-white/5">
-                        <div>
-                          <p className="text-[10px] font-black text-white uppercase tracking-widest">Ualá Bis</p>
-                          <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest italic text-emerald-500">Pasarela Real (NUEVO)</p>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            const current = config.enabledPaymentMethods?.ualabis !== false;
-                            setConfig({...config, enabledPaymentMethods: {...(config.enabledPaymentMethods || {}), ualabis: !current}});
-                          }}
-                          className={`w-12 h-6 rounded-full transition-all relative ${(config.enabledPaymentMethods?.ualabis !== false) ? 'bg-emerald-500' : 'bg-gray-800'}`}
-                        >
-                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(config.enabledPaymentMethods?.ualabis !== false) ? 'left-7' : 'left-1'}`} />
-                        </button>
-                      </div>
-
-                      {config.enabledPaymentMethods?.ualabis !== false && (
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-4">
-                          <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Configuración Ualá Bis</p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Access Token (Bearer)</label>
-                              <input 
-                                type="password"
-                                value={config.paymentCredentials?.ualabis?.accessToken || ''}
-                                onChange={(e) => setConfig({
-                                  ...config, 
-                                  paymentCredentials: {
-                                    ...config.paymentCredentials,
-                                    ualabis: { ...config.paymentCredentials?.ualabis, accessToken: e.target.value }
-                                  }
-                                })}
-                                placeholder="eyJhbG..."
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Usuario (Mail Ualá)</label>
-                              <input 
-                                type="text"
-                                value={config.paymentCredentials?.ualabis?.userName || ''}
-                                onChange={(e) => setConfig({
-                                  ...config, 
-                                  paymentCredentials: {
-                                    ...config.paymentCredentials,
-                                    ualabis: { ...config.paymentCredentials?.ualabis, userName: e.target.value }
-                                  }
-                                })}
-                                placeholder="usuario@mail.com"
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Notificaciones y Webhooks */}
-                      <div className="mt-10 pt-10 border-t border-white/5 space-y-8">
-                        <div>
-                          <h4 className="text-[11px] font-black text-white uppercase tracking-[0.2em] mb-4">Configuración Vital (Webhooks & Emails)</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">URL del Sitio (Para Webhooks)</label>
-                              <input 
-                                type="text"
-                                autoComplete="off"
-                                name="site-url"
-                                value={config.siteUrl || ''}
-                                onChange={(e) => setConfig({...config, siteUrl: e.target.value})}
-                                placeholder="https://distribuidoradgo.com.ar"
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                              />
-                              <p className="text-[7px] text-gray-600 mt-1 uppercase">Indispensable para que los pagos se confirmen solos.</p>
-                            </div>
-                            <div>
-                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Email remitente (Gmail)</label>
-                              <input 
-                                type="text"
-                                value={config.notificationEmail || ''}
-                                onChange={(e) => setConfig({...config, notificationEmail: e.target.value})}
-                                placeholder="tienda@gmail.com"
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                              />
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Password de Aplicación (Gmail)</label>
-                              <input 
-                                type="password"
-                                value={config.notificationPass || ''}
-                                onChange={(e) => setConfig({...config, notificationPass: e.target.value})}
-                                placeholder="xxxx xxxx xxxx xxxx"
-                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                              />
-                              <p className="text-[7px] text-emerald-500/50 mt-1 uppercase">No es tu clave de Gmail. Es la clave de 16 dígitos generada en Google Account.</p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {config.siteUrl && (
-                          <div className="p-6 bg-emerald-500/5 rounded-[30px] border border-emerald-500/20">
-                            <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-4 italic">URLs para pegar en tus Pasarelas:</p>
-                            <div className="space-y-4">
-                              <div>
-                                <p className="text-[7px] font-black text-gray-500 uppercase mb-1">Mercado Pago Webhook URL:</p>
-                                <code className="block bg-black/60 p-3 rounded-xl text-[9px] text-emerald-300 break-all border border-white/5">
-                                  {config.siteUrl.replace(/\/$/, '')}/.netlify/functions/webhook
-                                </code>
-                              </div>
-                              <div>
-                                <p className="text-[7px] font-black text-gray-500 uppercase mb-1">Ualá Bis Webhook URL:</p>
-                                <code className="block bg-black/60 p-3 rounded-xl text-[9px] text-emerald-300 break-all border border-white/5">
-                                  {config.siteUrl.replace(/\/$/, '')}/.netlify/functions/webhook-uala
-                                </code>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
                   {/* Hero */}
                   <div className="md:col-span-2 bg-[#111a24] p-10 rounded-[40px] border border-white/5">

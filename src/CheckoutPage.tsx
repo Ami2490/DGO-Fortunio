@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowLeft, ShoppingBag, User, Phone, MapPin,
   MessageSquare, CreditCard, CheckCircle, Loader2, Tag, X,
-  ExternalLink, Wallet, Landmark, CreditCard as CardIcon, ReceiptText
+  ExternalLink, Wallet, Landmark, CreditCard as CardIcon, ReceiptText, ChevronRight
 } from 'lucide-react';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -57,7 +57,12 @@ export function CheckoutPage({
     name: '',
     phone: '',
     address: '',
+    street: '',
+    number: '',
+    zipCode: '',
+    locality: '',
     note: '',
+    guestEmail: '', // Para pagos online sin login
     paymentMethod: config?.enabledPaymentMethods?.ualabis ? 'ualabis_pro' : 
                    (config?.enabledPaymentMethods?.mercadopago !== false) ? 'mercadopago_pro' : 'whatsapp_manual',
     subMethod: 'efectivo', 
@@ -138,9 +143,20 @@ export function CheckoutPage({
   // ── Validar formulario ─────────────────────────────────────────────────────
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!form.name.trim())    errs.name    = 'El nombre es obligatorio';
-    if (!form.phone.trim())   errs.phone   = 'El teléfono es obligatorio';
-    if (!form.address.trim()) errs.address = 'La dirección es obligatoria';
+    const fields = config?.checkoutFields;
+
+    if (fields?.name !== false && !form.name.trim()) errs.name = 'El nombre es obligatorio';
+    if (fields?.phone !== false && !form.phone.trim()) errs.phone = 'El teléfono es obligatorio';
+    
+    // Si no hay configuración de campos detallados, validamos el campo 'address' tradicional
+    if (!fields?.street && !fields?.locality) {
+      if (!form.address.trim()) errs.address = 'La dirección es obligatoria';
+    } else {
+      if (fields?.street && !form.street.trim()) errs.street = 'La calle es obligatoria';
+      if (fields?.number && !form.number.trim()) errs.number = 'El número es obligatorio';
+      if (fields?.locality && !form.locality.trim()) errs.locality = 'La localidad es obligatoria';
+      if (fields?.zipCode && !form.zipCode.trim()) errs.zipCode = 'El código postal es obligatorio';
+    }
     
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -156,11 +172,15 @@ export function CheckoutPage({
                         i.unitType === 'pack6' ? 'pack x6' : 'un';
       return `- *${i.name}* x${i.quantity} ${unitLabel} ($${(currentPrice * i.quantity).toLocaleString()})${isWholesale ? ' [MAYORISTA]' : ''}`;
     }).join('\n');
+    const fullAddress = config?.checkoutFields?.street 
+      ? `${form.street} ${form.number}${form.locality ? `, ${form.locality}` : ''}${form.zipCode ? ` (CP: ${form.zipCode})` : ''}`
+      : form.address;
+
     const msg = `*NUEVO PEDIDO - DGO (#${num})*\n` +
                 `---------------------------\n` +
-                `👤 *Cliente:* ${form.name}\n` +
-                `📞 *WhatsApp:* ${form.phone}\n` +
-                `📍 *Dirección:* ${form.address}\n` +
+                (config?.checkoutFields?.name !== false ? `👤 *Cliente:* ${form.name}\n` : '') +
+                (config?.checkoutFields?.phone !== false ? `📞 *WhatsApp:* ${form.phone}\n` : '') +
+                `📍 *Dirección:* ${fullAddress}\n` +
                 `💳 *Método:* ${form.subMethod.toUpperCase()}\n\n` +
                 `📦 *PRODUCTOS:*\n${itemsText}\n\n` +
                 `💰 *TOTAL:* $${total.toLocaleString()}\n` +
@@ -185,7 +205,9 @@ export function CheckoutPage({
       const order: Omit<Order, 'id' | 'status' | 'createdAt'> = {
         customerName:    form.name.trim(),
         customerPhone:   form.phone.trim(),
-        customerAddress: form.address.trim(),
+        customerAddress: config?.checkoutFields?.street 
+                         ? `${form.street} ${form.number}, ${form.locality}` 
+                         : form.address.trim(),
         customerNote:    form.note.trim() || null,
         customerEmail:   userEmail || null,
         userId:          userId || null,
@@ -229,48 +251,63 @@ export function CheckoutPage({
 
       // --- FLUJO MERCADO PAGO REAL ---
       if (form.paymentMethod === 'mercadopago_pro') {
+        const emailToUse = userEmail || (form.guestEmail.trim() || 'invitado@temp.com');
         const response = await fetch('/.netlify/functions/create-preference', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderId: orderId,
             items: order.items,
-            customerEmail: userEmail || 'invitado@temp.com',
+            customerEmail: emailToUse,
             total: total
           })
         });
 
         if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'Error al iniciar Mercado Pago');
+          const rawText = await response.text();
+          let errorMsg = 'Error al iniciar Mercado Pago';
+          try {
+            const errData = JSON.parse(rawText);
+            errorMsg = errData.error || errorMsg;
+          } catch (e) {
+            errorMsg = `Error del servidor (${response.status}): ${rawText.substring(0, 50)}...`;
+          }
+          throw new Error(errorMsg);
         }
 
-        const { init_point } = await response.json();
-        // Redirigir a Mercado Pago
-        window.location.href = init_point;
+        const data = await response.json();
+        window.location.href = data.init_point;
         return; 
       }
 
       // --- FLUJO UALA BIS ---
       if (form.paymentMethod === 'ualabis_pro') {
+        const emailToUse = userEmail || (form.guestEmail.trim() || 'invitado@temp.com');
         const response = await fetch('/.netlify/functions/create-ualabis-preference', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             orderId: orderId,
             items: order.items,
-            customerEmail: userEmail || 'invitado@temp.com',
+            customerEmail: emailToUse,
             total: total
           })
         });
 
         if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'Error al iniciar Ualá Bis');
+          const rawText = await response.text();
+          let errorMsg = 'Error al iniciar Ualá Bis';
+          try {
+            const errData = JSON.parse(rawText);
+            errorMsg = errData.error || errorMsg;
+          } catch (e) {
+            errorMsg = `Error del servidor (${response.status}): ${rawText.substring(0, 50)}...`;
+          }
+          throw new Error(errorMsg);
         }
 
-        const { checkout_url } = await response.json();
-        window.location.href = checkout_url;
+        const data = await response.json();
+        window.location.href = data.checkout_url;
         return;
       }
 
@@ -295,9 +332,10 @@ export function CheckoutPage({
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="min-h-screen bg-[#0a1118] flex items-center justify-center p-6 text-white"
+        className="min-h-screen flex items-center justify-center p-6"
+        style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}
       >
-        <div className="bg-[#111a24] rounded-[var(--br)] p-12 max-w-md w-full text-center shadow-2xl border border-white/10">
+        <div className="rounded-[var(--br)] p-12 max-w-md w-full text-center shadow-2xl border border-[var(--border)]" style={{ backgroundColor: 'var(--card)' }}>
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -307,18 +345,18 @@ export function CheckoutPage({
             <CheckCircle size={48} className="text-[var(--p)] shadow-[0_0_20px_rgba(var(--p-rgb),0.4)]" />
           </motion.div>
           <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2">¡PEDIDO RECIBIDO!</h2>
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500 mb-8">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--p)] mb-8">
             {form.paymentMethod === 'whatsapp_manual' 
               ? 'Serás redirigido a WhatsApp para finalizar' 
               : 'Tu solicitud ha sido procesada con éxito'}
           </p>
           
-          <div className="bg-white/5 rounded-3xl p-6 mb-8 border border-white/5">
-            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1">N° Identificador</p>
+          <div className="rounded-3xl p-6 mb-8 border border-[var(--border)]" style={{ backgroundColor: 'var(--bg)' }}>
+            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1">N° Identificador</p>
             <p className="text-2xl font-black italic text-[var(--p)]">DGO-{orderNumber}</p>
           </div>
 
-          <p className="text-sm text-gray-400 mb-8 leading-relaxed">
+          <p className="text-sm text-[var(--text-muted)] mb-8 leading-relaxed">
             {form.paymentMethod === 'whatsapp_manual'
               ? '¡Gracias por tu compra! En unos segundos se abrirá tu chat de WhatsApp para que podamos coordinar la entrega y el pago.'
               : '¡Pago aprobado! El equipo de DGO ya está preparando tu pedido. Pronto nos pondremos en contacto.'}
@@ -336,18 +374,18 @@ export function CheckoutPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#0a1118] text-white">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
       {/* Header Premium */}
-      <header className="sticky top-0 z-50 bg-[#0a1118]/80 backdrop-blur-md border-b border-white/10 px-6 py-5">
+      <header className="sticky top-0 z-50 backdrop-blur-md border-b border-[var(--border)] px-6 py-5" style={{ backgroundColor: 'var(--header)' }}>
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-5">
             <button
               onClick={onBack}
-              className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all group"
+              className="w-12 h-12 rounded-2xl bg-[var(--text)]/5 border border-[var(--border)] flex items-center justify-center hover:bg-[var(--text)]/10 transition-all group"
             >
-              <ArrowLeft size={20} className="text-gray-400 group-hover:text-white" />
+              <ArrowLeft size={20} className="text-[var(--text-muted)] group-hover:text-[var(--text)]" />
             </button>
-            <div className="hidden sm:block h-8 w-[1px] bg-white/10" />
+            <div className="hidden sm:block h-8 w-[1px] bg-[var(--border)]" />
             <div>
               <h1 className="text-xl font-black italic uppercase tracking-tighter leading-none mb-1">Finalizar Compra</h1>
               <p className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--p)]">
@@ -355,17 +393,18 @@ export function CheckoutPage({
               </p>
             </div>
           </div>
-          <ShoppingBag className="text-white/20 w-8 h-8 hidden md:block" />
+          <ShoppingBag className="text-[var(--text-muted)]/20 w-8 h-8 hidden md:block" />
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto p-6 md:p-10 grid lg:grid-cols-12 gap-10">
+      {/* Layout: en mobile stack vertical, en desktop grid de 12 columnas */}
+      <div className="max-w-6xl mx-auto p-4 md:p-10 flex flex-col lg:grid lg:grid-cols-12 gap-6 lg:gap-10">
 
-        {/* ── Columna Izquierda: Formularios ── */}
-        <div className="lg:col-span-7 space-y-10">
+        {/* ── Columna Izquierda: Formularios (en mobile va PRIMERO) ── */}
+        <div className="lg:col-span-7 space-y-6 order-1 lg:order-1 pb-24 lg:pb-0">
 
               {/* Sección 1: Datos Personales */}
-              <section className="bg-[#111a24] rounded-[var(--br)] p-8 border border-white/5 shadow-xl">
+              <section className="rounded-[var(--br)] p-8 border border-[var(--border)] shadow-xl" style={{ backgroundColor: 'var(--card)' }}>
                 <div className="flex items-center gap-3 mb-8">
                   <div className="w-10 h-10 rounded-xl bg-[var(--p)]/10 flex items-center justify-center">
                     <User size={20} className="text-[var(--p)]" />
@@ -373,36 +412,40 @@ export function CheckoutPage({
                   <h2 className="text-lg font-black italic uppercase tracking-tight">Datos del Comprador</h2>
                 </div>
                 
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">
-                      Nombre Completo
-                    </label>
-                    <input
-                      value={form.name}
-                      onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                      placeholder="Ej: Juan Pérez"
-                      className={`w-full bg-[#0a1118] border ${errors.name ? 'border-red-500/50' : 'border-white/10'} rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 focus:border-[var(--p)] transition-all`}
-                    />
-                    {errors.name && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-2">← {errors.name}</p>}
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">
-                      WhatsApp / Teléfono
-                    </label>
-                    <input
-                      value={form.phone}
-                      onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                      placeholder="Ej: 11 2345 6789"
-                      className={`w-full bg-[#0a1118] border ${errors.phone ? 'border-red-500/50' : 'border-white/10'} rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 focus:border-[var(--p)] transition-all`}
-                    />
-                    {errors.phone && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-2">← {errors.phone}</p>}
-                  </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {config?.checkoutFields?.name !== false && (
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)] block mb-3">
+                        Nombre Completo
+                      </label>
+                      <input
+                        value={form.name}
+                        onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                        placeholder="Ej: Juan Pérez"
+                        className={`w-full bg-[var(--bg)] border ${errors.name ? 'border-red-500/50' : 'border-[var(--border)]'} rounded-2xl px-5 py-4 text-sm font-medium text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 focus:border-[var(--p)] transition-all`}
+                      />
+                      {errors.name && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-2">← {errors.name}</p>}
+                    </div>
+                  )}
+                  {config?.checkoutFields?.phone !== false && (
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)] block mb-3">
+                        WhatsApp / Teléfono
+                      </label>
+                      <input
+                        value={form.phone}
+                        onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                        placeholder="Ej: 11 2345 6789"
+                        className={`w-full bg-[var(--bg)] border ${errors.phone ? 'border-red-500/50' : 'border-[var(--border)]'} rounded-2xl px-5 py-4 text-sm font-medium text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 focus:border-[var(--p)] transition-all`}
+                      />
+                      {errors.phone && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-2">← {errors.phone}</p>}
+                    </div>
+                  )}
                 </div>
               </section>
 
               {/* Sección 2: Entrega */}
-              <section className="bg-[#111a24] rounded-[var(--br)] p-8 border border-white/5 shadow-xl">
+              <section className="rounded-[var(--br)] p-8 border border-[var(--border)] shadow-xl" style={{ backgroundColor: 'var(--card)' }}>
                 <div className="flex items-center gap-3 mb-8">
                   <div className="w-10 h-10 rounded-xl bg-[var(--p)]/10 flex items-center justify-center">
                     <MapPin size={20} className="text-[var(--p)]" />
@@ -411,35 +454,90 @@ export function CheckoutPage({
                 </div>
                 
                 <div className="space-y-6">
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">
-                      Dirección de Envío
-                    </label>
-                    <input
-                      value={form.address}
-                      onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
-                      placeholder="Calle, Altura, Localidad..."
-                      className={`w-full bg-[#0a1118] border ${errors.address ? 'border-red-300/50' : 'border-white/10'} rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 transition-all`}
-                    />
-                    {errors.address && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-2">← {errors.address}</p>}
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">
-                      Notas para la logística
-                    </label>
-                    <textarea
-                      value={form.note}
-                      onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
-                      placeholder="¿Alguna aclaración? (Piso, entrada, timbre...)"
-                      rows={2}
-                      className="w-full bg-[#0a1118] border border-white/10 rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 transition-all resize-none"
-                    />
-                  </div>
+                  {(!config?.checkoutFields?.street && !config?.checkoutFields?.locality) ? (
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">
+                        Dirección de Envío
+                      </label>
+                      <input
+                        value={form.address}
+                        onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                        placeholder="Calle, Altura, Localidad..."
+                        className={`w-full bg-[var(--bg)] border ${errors.address ? 'border-red-300/50' : 'border-[var(--border)]'} rounded-2xl px-5 py-4 text-sm font-medium text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 transition-all`}
+                      />
+                      {errors.address && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-2">← {errors.address}</p>}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      {config?.checkoutFields?.street && (
+                        <div className="md:col-span-3">
+                          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">Calle</label>
+                          <input
+                            value={form.street}
+                            onChange={e => setForm(f => ({ ...f, street: e.target.value }))}
+                            placeholder="Nombre de la calle"
+                            className={`w-full bg-[var(--bg)] border ${errors.street ? 'border-red-500/50' : 'border-[var(--border)]'} rounded-2xl px-5 py-4 text-sm font-medium text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 transition-all`}
+                          />
+                          {errors.street && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-1">{errors.street}</p>}
+                        </div>
+                      )}
+                      {config?.checkoutFields?.number && (
+                        <div className="md:col-span-1">
+                          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">Nro</label>
+                          <input
+                            value={form.number}
+                            onChange={e => setForm(f => ({ ...f, number: e.target.value }))}
+                            placeholder="1234"
+                            className={`w-full bg-[var(--bg)] border ${errors.number ? 'border-red-500/50' : 'border-[var(--border)]'} rounded-2xl px-5 py-4 text-sm font-medium text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 transition-all`}
+                          />
+                          {errors.number && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-1">{errors.number}</p>}
+                        </div>
+                      )}
+                      {config?.checkoutFields?.locality && (
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">Localidad</label>
+                          <input
+                            value={form.locality}
+                            onChange={e => setForm(f => ({ ...f, locality: e.target.value }))}
+                            placeholder="Ej: Lanús"
+                            className={`w-full bg-[var(--bg)] border ${errors.locality ? 'border-red-500/50' : 'border-[var(--border)]'} rounded-2xl px-5 py-4 text-sm font-medium text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 transition-all`}
+                          />
+                          {errors.locality && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-1">{errors.locality}</p>}
+                        </div>
+                      )}
+                      {config?.checkoutFields?.zipCode && (
+                        <div className="md:col-span-2">
+                          <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">Código Postal</label>
+                          <input
+                            value={form.zipCode}
+                            onChange={e => setForm(f => ({ ...f, zipCode: e.target.value }))}
+                            placeholder="Ej: 1824"
+                            className={`w-full bg-[var(--bg)] border ${errors.zipCode ? 'border-red-500/50' : 'border-[var(--border)]'} rounded-2xl px-5 py-4 text-sm font-medium text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 transition-all`}
+                          />
+                          {errors.zipCode && <p className="text-[9px] text-red-500 font-black uppercase tracking-widest mt-1">{errors.zipCode}</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {config?.checkoutFields?.note !== false && (
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 block mb-3">
+                        Notas para la logística
+                      </label>
+                      <textarea
+                        value={form.note}
+                        onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+                        placeholder="¿Alguna aclaración? (Piso, entrada, timbre...)"
+                        rows={2}
+                        className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 transition-all resize-none"
+                      />
+                    </div>
+                  )}
                 </div>
               </section>
 
               {/* Sección 3: Método de Pago */}
-              <section className="bg-[#111a24] rounded-[var(--br)] p-8 border border-white/5 shadow-xl">
+              <section className="rounded-[var(--br)] p-8 border border-[var(--border)] shadow-xl" style={{ backgroundColor: 'var(--card)' }}>
                 <div className="flex items-center gap-3 mb-8">
                   <div className="w-10 h-10 rounded-xl bg-[var(--p)]/10 flex items-center justify-center">
                     <Wallet size={20} className="text-[var(--p)]" />
@@ -447,26 +545,28 @@ export function CheckoutPage({
                   <h2 className="text-lg font-black italic uppercase tracking-tight">Forma de Pago</h2>
                 </div>
 
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {/* Opción WhatsApp */}
                   {(config?.enabledPaymentMethods?.whatsapp !== false) && (
                     <button
                       onClick={() => setForm(f => ({ ...f, paymentMethod: 'whatsapp_manual', subMethod: 'efectivo' }))}
                       className={`relative p-6 rounded-3xl border-2 text-left transition-all ${
                         form.paymentMethod === 'whatsapp_manual'
-                          ? 'border-[var(--p)] bg-[var(--p)]/5 text-white'
-                          : 'border-white/5 bg-[#0a1118] text-gray-500 hover:border-white/20'
+                          ? 'border-[var(--p)] bg-[var(--p)]/10'
+                          : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--p)]/40'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-4">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${form.paymentMethod === 'whatsapp_manual' ? 'bg-[var(--p)]' : 'bg-white/5'}`}>
-                          <MessageSquare size={14} className={form.paymentMethod === 'whatsapp_manual' ? 'text-white' : 'text-gray-500'} />
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          form.paymentMethod === 'whatsapp_manual' ? 'bg-[var(--p)]' : 'bg-[var(--text)]/10'
+                        }`}>
+                          <MessageSquare size={14} className={form.paymentMethod === 'whatsapp_manual' ? 'text-white' : 'text-[var(--text-muted)]'} />
                         </div>
                         {form.paymentMethod === 'whatsapp_manual' && <CheckCircle size={16} className="text-[var(--p)]" />}
                       </div>
-                      <p className="text-[10px] font-black uppercase tracking-widest mb-1">Finalizar por</p>
-                      <p className="text-sm font-black italic uppercase tracking-tight">Efectivo / Transf.</p>
-                      <p className="text-[9px] font-medium text-gray-400 mt-2 opacity-60 italic">Coordinar Chat</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-1 text-[var(--text)]">Finalizar por</p>
+                      <p className="text-sm font-black italic uppercase tracking-tight text-[var(--text)]">Efectivo / Transf.</p>
+                      <p className="text-[9px] font-medium text-[var(--text-muted)] mt-2 italic">Coordinar Chat</p>
                     </button>
                   )}
 
@@ -476,19 +576,21 @@ export function CheckoutPage({
                       onClick={() => setForm(f => ({ ...f, paymentMethod: 'mercadopago_pro', subMethod: 'online' }))}
                       className={`relative p-6 rounded-3xl border-2 text-left transition-all ${
                         form.paymentMethod === 'mercadopago_pro'
-                          ? 'border-[var(--p)] bg-[var(--p)]/5 text-white'
-                          : 'border-white/5 bg-[#0a1118] text-gray-500 hover:border-white/20'
+                          ? 'border-[var(--p)] bg-[var(--p)]/10'
+                          : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--p)]/40'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-4">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${form.paymentMethod === 'mercadopago_pro' ? 'bg-[#009EE3]' : 'bg-white/5'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          form.paymentMethod === 'mercadopago_pro' ? 'bg-[#009EE3]' : 'bg-[var(--text)]/10'
+                        }`}>
                           <Wallet size={14} className="text-white" />
                         </div>
                         {form.paymentMethod === 'mercadopago_pro' && <CheckCircle size={16} className="text-[var(--p)]" />}
                       </div>
-                      <p className="text-[10px] font-black uppercase tracking-widest mb-1">Pago Online</p>
-                      <p className="text-sm font-black italic uppercase tracking-tight">Mercado Pago</p>
-                      <p className="text-[9px] font-medium text-gray-400 mt-2 opacity-60 italic">Pasarela Oficial</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-1 text-[var(--text)]">Pago Online</p>
+                      <p className="text-sm font-black italic uppercase tracking-tight text-[var(--text)]">Mercado Pago</p>
+                      <p className="text-[9px] font-medium text-[var(--text-muted)] mt-2 italic">Pasarela Oficial</p>
                     </button>
                   )}
 
@@ -498,19 +600,21 @@ export function CheckoutPage({
                       onClick={() => setForm(f => ({ ...f, paymentMethod: 'ualabis_pro', subMethod: 'online' }))}
                       className={`relative p-6 rounded-3xl border-2 text-left transition-all ${
                         form.paymentMethod === 'ualabis_pro'
-                          ? 'border-[var(--p)] bg-[var(--p)]/5 text-white'
-                          : 'border-white/5 bg-[#0a1118] text-gray-500 hover:border-white/20'
+                          ? 'border-[var(--p)] bg-[var(--p)]/10'
+                          : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--p)]/40'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-4">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${form.paymentMethod === 'ualabis_pro' ? 'bg-[#00D1FF]' : 'bg-white/5'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          form.paymentMethod === 'ualabis_pro' ? 'bg-[#00D1FF]' : 'bg-[var(--text)]/10'
+                        }`}>
                           <CardIcon size={14} className="text-white" />
                         </div>
                         {form.paymentMethod === 'ualabis_pro' && <CheckCircle size={16} className="text-[var(--p)]" />}
                       </div>
-                      <p className="text-[10px] font-black uppercase tracking-widest mb-1">Pago Online</p>
-                      <p className="text-sm font-black italic uppercase tracking-tight">Ualá Bis</p>
-                      <p className="text-[9px] font-bold text-emerald-500 mt-2 italic">¡Más cuotas!</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-1 text-[var(--text)]">Pago Online</p>
+                      <p className="text-sm font-black italic uppercase tracking-tight text-[var(--text)]">Ualá Bis</p>
+                      <p className="text-[9px] font-bold text-[var(--p)] mt-2 italic">¡Más cuotas!</p>
                     </button>
                   )}
                 </div>
@@ -523,33 +627,65 @@ export function CheckoutPage({
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="mt-6 pt-6 border-t border-white/5 grid grid-cols-2 gap-3"
+                      className="mt-6 pt-6 border-t border-[var(--border)] grid grid-cols-2 gap-3"
                     >
                       <button
                         onClick={() => setForm(f => ({ ...f, subMethod: 'efectivo' }))}
-                        className={`py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${form.subMethod === 'efectivo' ? 'bg-[var(--p)] text-white' : 'bg-white/5 text-gray-500'}`}
+                        className={`py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                          form.subMethod === 'efectivo'
+                            ? 'bg-[var(--p)] text-white'
+                            : 'border border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--p)]/40'
+                        }`}
                       >
                         Billete Efectivo
                       </button>
                       <button
                         onClick={() => setForm(f => ({ ...f, subMethod: 'transferencia' }))}
-                        className={`py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${form.subMethod === 'transferencia' ? 'bg-[var(--p)] text-white' : 'bg-white/5 text-gray-500'}`}
+                        className={`py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                          form.subMethod === 'transferencia'
+                            ? 'bg-[var(--p)] text-white'
+                            : 'border border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--p)]/40'
+                        }`}
                       >
                         Transferencia
                       </button>
                     </motion.div>
                   )}
                 </AnimatePresence>
+                {/* Campo email para invitados en pagos online */}
+                {!userId && (form.paymentMethod === 'mercadopago_pro' || form.paymentMethod === 'ualabis_pro') && (
+                  <motion.div
+                    key="guest-email"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-5 pt-5 border-t border-[var(--border)]"
+                  >
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)] block mb-3">
+                      Tu Email <span className="text-[var(--p)]">(Recomendado para recibir el comprobante)</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={form.guestEmail}
+                      onChange={e => setForm(f => ({ ...f, guestEmail: e.target.value }))}
+                      placeholder="tu@email.com"
+                      className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-2xl px-5 py-4 text-sm font-medium text-[var(--text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--p)]/30 focus:border-[var(--p)] transition-all"
+                    />
+                    <p className="text-[9px] text-[var(--text-muted)] font-bold uppercase tracking-widest mt-2 italic">
+                      Sin cuenta podés comprar igual. El email es solo para el comprobante.
+                    </p>
+                  </motion.div>
+                )}
               </section>
         </div>
 
-        {/* ── Columna Derecha: Detalle de Orden ── */}
-        <div className="lg:col-span-5 space-y-6">
+        {/* ── Columna Derecha: Detalle (en mobile va al FINAL) ── */}
+        <div className="lg:col-span-5 space-y-4 order-2 lg:order-2">
           
           {/* Items */}
-          <div className="bg-[#111a24] rounded-[var(--br)] border border-white/5 overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between">
-              <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Tu Pedido</h3>
+          <div className="rounded-[var(--br)] border border-[var(--border)] overflow-hidden" style={{ backgroundColor: 'var(--card)' }}>
+            <div className="p-6 border-b border-[var(--border)] flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">Tu Pedido</h3>
               <ShoppingBag size={16} className="text-[var(--p)]" />
             </div>
             <div className="p-2 space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar">
@@ -558,32 +694,32 @@ export function CheckoutPage({
                 const currentPrice = isWholesale ? item.wholesalePrice : item.price;
                 
                 return (
-                  <div key={item.id} className="flex items-center gap-4 p-4 rounded-3xl hover:bg-white/5 transition-colors group relative">
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-black/40 border border-white/5 flex-shrink-0">
+                  <div key={item.id} className="flex items-center gap-4 p-4 rounded-3xl hover:bg-[var(--text)]/5 transition-colors group relative">
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-[var(--border)] flex-shrink-0" style={{ backgroundColor: 'var(--bg)' }}>
                       <img src={imgSizes.thumb(item.image)} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="text-[11px] font-black uppercase tracking-wide text-white/90 leading-tight truncate">{item.name}</p>
-                        {isWholesale && <span className="text-[7px] bg-emerald-500 text-white font-black px-1.5 py-0.5 rounded uppercase">M</span>}
+                        <p className="text-[11px] font-black uppercase tracking-wide text-[var(--text)] leading-tight truncate">{item.name}</p>
+                        {isWholesale && <span className="text-[7px] bg-[var(--p)] text-white font-black px-1.5 py-0.5 rounded uppercase">M</span>}
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="flex items-center bg-black/30 rounded-lg border border-white/5 h-7">
+                        <div className="flex items-center rounded-lg border border-[var(--border)] h-7" style={{ backgroundColor: 'var(--bg)' }}>
                           <button 
                             onClick={() => onUpdateQuantity(item.id, -1)}
-                            className="w-7 h-full flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                            className="w-7 h-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
                           >
                             -
                           </button>
-                          <span className="text-[10px] font-black w-4 text-center">{item.quantity}</span>
+                          <span className="text-[10px] font-black w-4 text-center text-[var(--text)]">{item.quantity}</span>
                           <button 
                             onClick={() => onUpdateQuantity(item.id, 1)}
-                            className="w-7 h-full flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                            className="w-7 h-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
                           >
                             +
                           </button>
                         </div>
-                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-none">
+                        <span className="text-[9px] text-[var(--text-muted)] font-bold uppercase tracking-widest leading-none">
                           x {
                             item.unitType === 'dozen' ? 'Doc' : 
                             item.unitType === 'pack10' ? 'P10' :
@@ -592,7 +728,7 @@ export function CheckoutPage({
                         </span>
                       </div>
                     </div>
-                    <p className="text-sm font-black text-white self-center">
+                    <p className="text-sm font-black text-[var(--text)] self-center">
                       ${((currentPrice || 0) * item.quantity).toLocaleString()}
                     </p>
                   </div>
@@ -602,19 +738,19 @@ export function CheckoutPage({
           </div>
 
           {/* Cupón */}
-          <div className="bg-[#111a24] rounded-[var(--br)] p-6 border border-white/5">
+          <div className="rounded-[var(--br)] p-6 border border-[var(--border)]" style={{ backgroundColor: 'var(--card)' }}>
             <div className="flex items-center gap-2 mb-4">
               <Tag size={14} className="text-[var(--p)]" />
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400">Cupón de Descuento</h3>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Cupón de Descuento</h3>
             </div>
             {couponOk ? (
-              <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-5 py-4">
+              <div className="flex items-center justify-between bg-[var(--p)]/10 border border-[var(--p)]/20 rounded-2xl px-5 py-4">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400 underline decoration-2">{couponCode.toUpperCase()}</p>
-                  <p className="text-[11px] font-black text-emerald-500 mt-1">−${discount.toLocaleString()}</p>
+                  <p className="text-[11px] font-black uppercase tracking-widest text-[var(--p)] underline decoration-2">{couponCode.toUpperCase()}</p>
+                  <p className="text-[11px] font-black text-[var(--p)] mt-1">−${discount.toLocaleString()}</p>
                 </div>
-                <button onClick={removeCoupon} className="p-2 rounded-full h-8 w-8 bg-emerald-500/10 flex items-center justify-center hover:bg-emerald-500/20 transition-all">
-                  <X size={14} className="text-emerald-500" />
+                <button onClick={removeCoupon} className="p-2 rounded-full h-8 w-8 bg-[var(--p)]/10 flex items-center justify-center hover:bg-[var(--p)]/20 transition-all">
+                  <X size={14} className="text-[var(--p)]" />
                 </button>
               </div>
             ) : (
@@ -624,7 +760,7 @@ export function CheckoutPage({
                   onChange={e => { setCouponCode(e.target.value); setCouponMsg(''); }}
                   onKeyDown={e => e.key === 'Enter' && handleApplyCoupon()}
                   placeholder="Código"
-                  className="flex-1 bg-[#0a1118] border border-white/10 rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest text-white focus:outline-none focus:border-[var(--p)] transition-all"
+                  className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-3 text-xs font-black uppercase tracking-widest text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--p)] transition-all"
                 />
                 <button
                   onClick={handleApplyCoupon}
@@ -636,38 +772,38 @@ export function CheckoutPage({
               </div>
             )}
             {couponMsg && (
-              <p className={`text-[9px] font-black uppercase tracking-widest mt-3 px-1 ${couponOk ? 'text-emerald-500' : 'text-red-400'}`}>
+              <p className={`text-[9px] font-black uppercase tracking-widest mt-3 px-1 ${couponOk ? 'text-[var(--p)]' : 'text-red-400'}`}>
                 {couponMsg}
               </p>
             )}
           </div>
 
           {/* Resumen Final */}
-          <div className="bg-[#111a24] rounded-[var(--br)] p-8 border border-white/5 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5">
-              <ReceiptText size={120} className="text-white" />
+          <div className="rounded-[var(--br)] p-8 border border-[var(--border)] shadow-2xl relative overflow-hidden" style={{ backgroundColor: 'var(--card)' }}>
+            <div className="absolute top-0 right-0 p-8 opacity-[0.03]">
+              <ReceiptText size={120} className="text-[var(--text)]" />
             </div>
             
             <div className="space-y-4 mb-8">
-              <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-widest text-gray-500">
+              <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">
                 <span>Subtotal</span>
-                <span>${subtotal.toLocaleString()}</span>
+                <span className="text-[var(--text)]">${subtotal.toLocaleString()}</span>
               </div>
               {discount > 0 && (
-                <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-widest text-emerald-500">
+                <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-widest text-[var(--p)]">
                   <span>Descuento Aplicado</span>
                   <span>−${discount.toLocaleString()}</span>
                 </div>
               )}
-              <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-widest text-gray-500">
+              <div className="flex justify-between items-center text-[11px] font-black uppercase tracking-widest text-[var(--text-muted)]">
                 <span>Envío</span>
-                <span className="text-white/40 italic">A convenir</span>
+                <span className="text-[var(--text-muted)] italic">A convenir</span>
               </div>
-              <div className="h-[1px] bg-white/5 my-4" />
+              <div className="h-[1px] my-4" style={{ backgroundColor: 'var(--border)' }} />
               <div className="flex justify-between items-end">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-500 mb-1">Total a Pagar</p>
-                  <p className="text-4xl font-black italic text-white tracking-tighter">${total.toLocaleString()}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)] mb-1">Total a Pagar</p>
+                  <p className="text-4xl font-black italic text-[var(--text)] tracking-tighter">${total.toLocaleString()}</p>
                 </div>
                 <motion.div 
                   animate={{ scale: [1, 1.1, 1] }}
@@ -713,6 +849,42 @@ export function CheckoutPage({
           </div>
         </div>
       </div>
+
+      {/* ── BOTÓN DE PAGO FLOTANTE (SOLO MOBILE) ── */}
+      <AnimatePresence>
+        {cart.length > 0 && (
+          <motion.div 
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            exit={{ y: 100 }}
+            className="lg:hidden fixed bottom-0 left-0 right-0 z-[60] p-4 bg-[#0a1118]/80 backdrop-blur-xl border-t border-white/5 shadow-[0_-10px_40px_rgba(0,0,0,0.5)]"
+          >
+            <div className="max-w-md mx-auto flex items-center gap-4">
+              <div className="flex-1">
+                <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Total a Pagar</p>
+                <p className="text-xl font-black italic text-white tracking-tighter">${total.toLocaleString()}</p>
+              </div>
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="flex-[2] py-4 rounded-2xl text-white font-black italic uppercase tracking-tighter text-sm transition-all shadow-xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ backgroundColor: 'var(--p)' }}
+              >
+                {submitting ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <>
+                    {form.paymentMethod === 'ualabis_pro' ? 'Pagar c/ Ualá' : 
+                     form.paymentMethod === 'mercadopago_pro' ? 'Pagar c/ MP' : 
+                     'Pedir x WA'}
+                    <ChevronRight size={18} />
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

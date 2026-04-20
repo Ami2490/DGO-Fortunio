@@ -5,7 +5,7 @@
 
 import { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import React from 'react';
-import { ShoppingCart, Search, Menu, User, X, Truck, ShieldCheck, Headset, Tag, Instagram, Facebook, Mail, Phone, MapPin, Eye, Trash2, ChevronDown, Plus, ArrowLeft, ArrowRight, Zap } from 'lucide-react';
+import { ShoppingCart, Search, Menu, User, X, Truck, ShieldCheck, Headset, Tag, Instagram, Facebook, Mail, Phone, MapPin, Eye, Trash2, ChevronDown, Plus, ArrowLeft, ArrowRight, Zap, Sun, Moon, Users } from 'lucide-react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'motion/react';
 import { db, auth, DB_PATHS } from './firebase';
 import { doc, collection, onSnapshot, query, orderBy, setDoc } from 'firebase/firestore';
@@ -18,6 +18,7 @@ import { awardPoints, generateReferralCode, processReferral } from './services/p
 import { RegistrationIncentive } from './components/RegistrationIncentive';
 import { trackEvent, Events } from './lib/analytics';
 import { Product } from './services/dbService';
+import { ThemePanel } from './components/ThemePanel';
 
 // --- Types ---
 // ... (rest of the types)
@@ -39,6 +40,18 @@ interface SiteConfig {
     secondaryColor: string;
     borderRadius: string;
     fontBase: string;
+    defaultMode: 'light' | 'dark';
+  };
+  aboutText?: string;
+  aboutImage?: string;
+  checkoutFields?: {
+    name?: boolean;
+    phone?: boolean;
+    street?: boolean;
+    number?: boolean;
+    zipCode?: boolean;
+    locality?: boolean;
+    note?: boolean;
   };
   footer: {
     description: string;
@@ -96,6 +109,74 @@ export default function App() {
   const [activeCarouselIndex, setActiveCarouselIndex] = useState(0);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // --- Dynamic Theme Logic ---
+  useEffect(() => {
+    if (!config) return;
+    
+    // Set initial mode from config if not manually changed yet
+    const savedMode = localStorage.getItem('theme-mode');
+    if (!savedMode) {
+      setIsDarkMode(config.theme.defaultMode !== 'light');
+    } else {
+      setIsDarkMode(savedMode === 'dark');
+    }
+  }, [config?.theme?.defaultMode]);
+
+  useEffect(() => {
+    if (!config) return;
+    const root = document.documentElement;
+    const theme = config.theme;
+    
+    // Global Properties
+    root.style.setProperty('--br', theme.borderRadius || '1rem');
+    
+    // Si existe un tema personalizado guardado desde el ThemePanel, lo usamos.
+    // De lo contrario, usamos los valores por defecto (DGO Original).
+    const isDark = isDarkMode;
+    const mode = isDark ? 'dark' : 'light';
+    const custom = theme.customTheme?.[mode];
+
+    if (custom) {
+      root.style.setProperty('--p', custom.color1);
+      root.style.setProperty('--s', custom.color2);
+      root.style.setProperty('--bg', custom.bgPage);
+      root.style.setProperty('--card', custom.bgCard);
+      root.style.setProperty('--footer-bg', custom.bgFooter);
+      root.style.setProperty('--text', custom.textMain);
+      root.style.setProperty('--text-muted', custom.textMuted);
+      root.style.setProperty('--border', custom.borderColor);
+      root.style.setProperty('--border-soft', isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)');
+      root.style.setProperty('--header', isDark ? `${custom.bgPage}dd` : `${custom.bgCard}e6`);
+    } else {
+      // Fallback a los valores de diseño originales si no hay customTheme
+      root.style.setProperty('--p', theme.primaryColor || '#10b981');
+      root.style.setProperty('--s', theme.secondaryColor || '#06b6d4');
+      
+      if (isDark) {
+        root.style.setProperty('--bg', '#0a0f16');
+        root.style.setProperty('--card', '#111a24');
+        root.style.setProperty('--footer-bg', '#0d1520');
+        root.style.setProperty('--text', '#ffffff');
+        root.style.setProperty('--text-muted', '#94a3b8');
+        root.style.setProperty('--border', 'rgba(255,255,255,0.08)');
+        root.style.setProperty('--border-soft', 'rgba(255,255,255,0.12)');
+        root.style.setProperty('--header', 'rgba(10,15,22,0.85)');
+      } else {
+        root.style.setProperty('--bg', '#f8fafc');
+        root.style.setProperty('--card', '#ffffff');
+        root.style.setProperty('--footer-bg', '#e8ecf0');
+        root.style.setProperty('--text', '#0f172a');
+        root.style.setProperty('--text-muted', '#475569');
+        root.style.setProperty('--border', 'rgba(0,0,0,0.1)');
+        root.style.setProperty('--border-soft', 'rgba(0,0,0,0.06)');
+        root.style.setProperty('--header', 'rgba(255,255,255,0.9)');
+      }
+    }
+    
+    localStorage.setItem('theme-mode', isDarkMode ? 'dark' : 'light');
+  }, [config, isDarkMode]);
 
   const carouselProducts = useMemo(() => {
     const seed = new Date().toDateString();
@@ -312,7 +393,7 @@ export default function App() {
   }, 0);
 
 
-  const phrases = ['Equipamiento Profesional', 'Vajilla de Calidad', 'Logística Express'];
+  const phrases = ['Equipamiento Profesional', 'Vajilla de Calidad', 'Envíos a todo el País'];
   const variants = {
     fade: { opacity: [0, 1], y: [10, 0] },
     slide: { opacity: [0, 1], x: [-20, 0] },
@@ -324,11 +405,6 @@ export default function App() {
       if (doc.exists()) {
         const data = doc.data() as SiteConfig;
         setConfig(data);
-        // Inject CSS Variables
-        const root = document.documentElement;
-        root.style.setProperty('--p', data.theme.primaryColor);
-        root.style.setProperty('--s', data.theme.secondaryColor);
-        root.style.setProperty('--br', data.theme.borderRadius);
       }
     });
 
@@ -413,7 +489,7 @@ export default function App() {
   ];
 
   const displayBenefits = dynamicBenefits.length > 0 ? dynamicBenefits : [
-    { iconName: 'Truck', title: 'Envío Express', desc: 'Entregas rápidas y seguras' },
+    { iconName: 'Truck', title: 'Envíos a todo el País', desc: 'Llegamos a cada rincón de Argentina' },
     { iconName: 'ShieldCheck', title: 'Calidad Garantizada', desc: 'Productos de primer nivel' },
     { iconName: 'Headset', title: 'Atención Personalizada', desc: 'Asesoramiento experto' },
     { iconName: 'Tag', title: 'Precios Mayoristas', desc: 'Los mejores precios del mercado' },
@@ -437,6 +513,8 @@ export default function App() {
         }}
         userId={currentUser?.uid}
         userEmail={currentUser?.email}
+        userLevel={null}
+        config={config}
         supportPhone={config?.footer?.phone || '5491112345678'}
       />
     );
@@ -444,11 +522,11 @@ export default function App() {
 
   if (currentPath === '/order-success') {
     return (
-      <div className="min-h-screen bg-[#0a1118] flex items-center justify-center p-4 font-sans">
+      <div className="min-h-screen bg-[var(--bg)] flex items-center justify-center p-4 font-sans">
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-[#111a24] p-12 rounded-[2.5rem] border border-white/10 text-center max-w-md w-full shadow-2xl"
+          className="bg-[var(--card)] p-12 rounded-[2.5rem] border border-[var(--border)] text-center max-w-md w-full shadow-2xl"
         >
           <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-8">
             <ShieldCheck className="w-10 h-10 text-emerald-500" />
@@ -474,33 +552,33 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={config?.theme || null}>
-      <div className="min-h-screen bg-[#0a1118] text-white font-sans" style={{ borderRadius: 'var(--br)' }}>
+      <div className="min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans" style={{ borderRadius: 'var(--br)' }}>
         <motion.header 
           initial={{ y: -100 }}
           animate={{ y: 0 }}
-          className="sticky top-0 z-50 bg-[#0a1118]/80 backdrop-blur-md border-b border-white/10"
+          className="sticky top-0 z-50 bg-[var(--header)] backdrop-blur-md border-b border-[var(--border)]"
         >
           <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <div className="flex items-center justify-start md:w-[200px]">
-              <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-gray-400 hover:text-white">
+              <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="md:hidden text-[var(--text-muted)] hover:text-[var(--text)]">
                 {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
             </div>
             
-            <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 gap-8 items-center text-gray-400">
+            <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 gap-8 items-center text-[var(--text-muted)]">
               {navItems.map(item => (
                 <div key={item.label} className="relative group">
                   <button
                     onClick={() => handleNavigation(item, false)}
                     className="hover:text-[var(--p)] transition-colors uppercase text-xs font-black tracking-[0.2em] flex items-center gap-1.5"
                   >
-                    {item.label}
+                    <span className={item.label === 'CATEGORÍAS' ? '' : 'text-[var(--text)]'}>{item.label}</span>
                     {item.label === 'CATEGORÍAS' && <ChevronDown className="w-3 h-3 group-hover:rotate-180 transition-transform" />}
                   </button>
 
                   {item.label === 'CATEGORÍAS' && (
                     <div className="absolute top-full left-1/2 -translate-x-1/2 pt-6 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all">
-                      <div className="bg-[#111a24] border border-white/10 rounded-2xl overflow-hidden shadow-2xl min-w-[240px]">
+                      <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-2xl min-w-[240px]">
                         {displayCategories.map((cat) => (
                           <button
                             key={cat.id || cat.name}
@@ -517,13 +595,16 @@ export default function App() {
               ))}
             </div>
 
-            <div className="flex items-center justify-end gap-2 md:w-[200px]">
-              <button 
-                onClick={() => setIsSearchOpen(true)}
-                className="p-2 text-gray-400 hover:text-[var(--p)] transition-colors rounded-full hover:bg-white/5"
-              >
-                <Search className="w-5 h-5" />
-              </button>
+            <div className="flex items-center justify-end gap-3 md:min-w-[240px]">
+              <div className="flex items-center gap-1">
+                <ThemeSwitcher isDarkMode={isDarkMode} toggle={() => setIsDarkMode(!isDarkMode)} />
+                <button 
+                  onClick={() => setIsSearchOpen(true)}
+                  className="p-2.5 text-[var(--text-muted)] hover:text-[var(--p)] transition-colors rounded-full hover:bg-[var(--text)]/5"
+                >
+                  <Search className="w-5 h-5" />
+                </button>
+              </div>
               
               <div className="flex items-center gap-2 md:gap-4">
                 {currentUser ? (
@@ -531,20 +612,20 @@ export default function App() {
                 ) : (
                   <button 
                     onClick={() => setIsAuthModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 hover:bg-white/5 transition-colors group"
+                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-[var(--border)] hover:bg-[var(--text)]/5 transition-colors group"
                   >
                     <User className="w-5 h-5 text-[var(--p)] group-hover:scale-110 transition-transform" />
-                    <span className="text-xs font-black uppercase tracking-widest hidden md:block">Acceso</span>
+                    <span className="text-xs font-black uppercase tracking-widest hidden md:block text-[var(--text)]">Acceso</span>
                   </button>
                 )}
                 
                 <button 
                   onClick={() => setIsCartOpen(true)}
-                  className="relative p-2 hover:bg-white/5 rounded-full transition-colors group"
+                  className="relative p-2 hover:bg-[var(--text)]/5 rounded-full transition-colors group"
                 >
-                  <ShoppingCart className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+                  <ShoppingCart className="w-6 h-6 text-[var(--text)] group-hover:scale-110 transition-transform" />
                   {cart.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-[var(--p)] text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0a1118] animate-in zoom-in">
+                    <span className="absolute -top-1 -right-1 bg-[var(--p)] text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-[var(--bg)] animate-in zoom-in">
                       {cart.reduce((sum, item) => sum + item.quantity, 0)}
                     </span>
                   )}
@@ -559,7 +640,7 @@ export default function App() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="md:hidden bg-[#0a1118] border-b border-white/10 p-4"
+                className="md:hidden border-b border-[var(--border)] p-4" style={{ backgroundColor: 'var(--card)' }}
               >
                 {navItems.map(item => (
                   <div key={item.label}>
@@ -617,11 +698,12 @@ export default function App() {
                     className="w-32 h-32 mx-auto mb-6 object-contain drop-shadow-2xl"
                     referrerPolicy="no-referrer"
                   />
+                  {/* Hero: siempre sobre imagen oscura → texto siempre blanco */}
                   <motion.h1 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    className="text-4xl md:text-6xl font-bold mb-4 tracking-tight drop-shadow-lg"
+                    className="text-white text-4xl md:text-6xl font-bold mb-4 tracking-tight drop-shadow-lg"
                   >
                     {heroData.title}
                   </motion.h1>
@@ -641,7 +723,7 @@ export default function App() {
                         animate={variants[animationVariant as keyof typeof variants] || variants.fade}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="text-gray-100 text-lg font-medium drop-shadow-lg"
+                        className="text-white/90 text-lg font-medium drop-shadow-lg"
                       >
                         {phrases[phraseIndex]}
                       </motion.p>
@@ -681,8 +763,8 @@ export default function App() {
                         <div className="w-10 h-10 rounded-full bg-[var(--p)]/10 flex items-center justify-center mb-4 group-hover:bg-[var(--p)]/20 transition-colors">
                           <Icon className="w-5 h-5 text-[var(--p)]" />
                         </div>
-                        <h3 className="text-sm font-bold mb-1">{benefit.title}</h3>
-                        <p className="text-xs text-gray-400">{benefit.desc}</p>
+                        <h3 className="text-sm font-bold mb-1 text-[var(--text)]">{benefit.title}</h3>
+                        <p className="text-xs text-[var(--text-muted)]">{benefit.desc}</p>
                       </motion.div>
                     );
                   })}
@@ -849,7 +931,7 @@ export default function App() {
                       </div>
                       <div className="absolute inset-0 bg-gradient-to-t from-[#0a1118] via-transparent to-transparent" />
                       <div className="relative z-10">
-                        <h3 className="text-2xl font-bold mb-2">{category.name}</h3>
+                        <h3 className="text-2xl font-bold mb-2 text-white">{category.name}</h3>
                         <button className="text-sm text-[var(--p)] font-medium hover:text-white transition-colors">
                           Ver Catálogo →
                         </button>
@@ -859,32 +941,31 @@ export default function App() {
                 </motion.div>
               )}
 
-              {/* Nosotros Section */}
-              <section id="nosotros" className="py-24 border-t border-white/5 scroll-mt-24">
+              <section id="nosotros" className="py-24 border-t border-[var(--border)] scroll-mt-24">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
                   <div className="relative">
                     <div className="absolute -inset-4 bg-[var(--p)]/20 blur-3xl rounded-full" />
                     <img 
                       src="/b0.webp" 
                       alt="Nosotros" 
-                      className="relative rounded-[40px] border border-white/10 shadow-2xl"
+                      className="relative rounded-[40px] border border-[var(--border)] shadow-2xl"
                       referrerPolicy="no-referrer"
                     />
                   </div>
                   <div>
                     <span className="text-[var(--p)] text-[10px] font-black uppercase tracking-[0.3em] mb-4 block">Nuestra Historia</span>
-                    <h2 className="text-5xl font-black uppercase tracking-tighter mb-8 leading-none">Pasión por la <br/> Gastronomía</h2>
-                    <p className="text-gray-400 text-lg leading-relaxed mb-8">
+                    <h2 className="text-5xl font-black uppercase tracking-tighter mb-8 leading-none text-[var(--text)]">Pasión por la <br/> Gastronomía</h2>
+                    <p className="text-[var(--text-muted)] text-lg leading-relaxed mb-8">
                       Desde hace más de 15 años, DGO se ha consolidado como el socio estratégico de los principales restaurantes y hoteles del país. No solo vendemos vajilla; entregamos soluciones integrales que elevan la experiencia de cada comensal.
                     </p>
                     <div className="grid grid-cols-2 gap-8">
                       <div>
-                        <h4 className="text-3xl font-black text-white mb-1">+500</h4>
-                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Clientes Activos</p>
+                        <h4 className="text-3xl font-black mb-1 text-[var(--text)]">+500</h4>
+                        <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest">Clientes Activos</p>
                       </div>
                       <div>
-                        <h4 className="text-3xl font-black text-white mb-1">15+</h4>
-                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Años de Trayectoria</p>
+                        <h4 className="text-3xl font-black mb-1 text-[var(--text)]">15+</h4>
+                        <p className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest">Años de Trayectoria</p>
                       </div>
                     </div>
                   </div>
@@ -892,23 +973,23 @@ export default function App() {
               </section>
 
               {/* Servicios Section */}
-              <section id="servicios" className="py-24 border-t border-white/5 scroll-mt-24">
+              <section id="servicios" className="py-24 border-t border-[var(--border)] scroll-mt-24">
                 <div className="text-center mb-16">
                   <span className="text-[var(--p)] text-[10px] font-black uppercase tracking-[0.3em] mb-4 block">Lo que hacemos</span>
-                  <h2 className="text-5xl font-black uppercase tracking-tighter">Servicios Premium</h2>
+                  <h2 className="text-5xl font-black uppercase tracking-tighter text-[var(--text)]">Servicios Premium</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   {[
                     { title: 'Venta Mayorista', desc: 'Precios competitivos para equipar tu negocio desde cero.', icon: Tag },
                     { title: 'Asesoramiento', desc: 'Expertos que te ayudan a elegir la vajilla ideal para tu concepto.', icon: User },
-                    { title: 'Logística Propia', desc: 'Entregas garantizadas en tiempo y forma con nuestra flota.', icon: Truck },
+                    { title: 'Envíos a todo el País', desc: 'Entregamos en cada rincón de Argentina con la máxima seguridad y rapidez.', icon: Truck },
                   ].map((serv, i) => (
-                    <div key={i} className="bg-[#111a24] p-10 rounded-[40px] border border-white/10 hover:border-[var(--p)]/50 transition-all group">
+                    <div key={i} className="p-10 rounded-[40px] border border-[var(--border-soft)] hover:border-[var(--p)]/50 transition-all group" style={{ backgroundColor: 'var(--card)' }}>
                       <div className="w-12 h-12 bg-[var(--p)]/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                         <serv.icon className="w-6 h-6 text-[var(--p)]" />
                       </div>
-                      <h3 className="text-xl font-black uppercase tracking-tight mb-4">{serv.title}</h3>
-                      <p className="text-gray-400 text-sm leading-relaxed">{serv.desc}</p>
+                      <h3 className="text-xl font-black uppercase tracking-tight mb-4 text-[var(--text)]">{serv.title}</h3>
+                      <p className="text-sm leading-relaxed text-[var(--text-muted)]">{serv.desc}</p>
                     </div>
                   ))}
                 </div>
@@ -947,12 +1028,12 @@ export default function App() {
                         navigate('/');
                         window.scrollTo(0,0);
                       }} 
-                      className="text-gray-500 hover:text-white flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors"
+                      className="text-[var(--text-muted)] hover:text-[var(--p)] flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors"
                     >
                       ← Volver al Catálogo
                     </button>
 
-                    <div className="flex items-center gap-4 bg-[#111a24] p-1.5 rounded-2xl border border-white/5">
+                    <div className="flex items-center gap-4 bg-[var(--card)] p-1.5 rounded-2xl border border-[var(--border)]">
                       {[
                         { id: 'relevant', label: 'Relevantes' },
                         { id: 'price-asc', label: 'Menor Precio' },
@@ -961,7 +1042,7 @@ export default function App() {
                         <button
                           key={filter.id}
                           onClick={() => setSortBy(filter.id as any)}
-                          className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${sortBy === filter.id ? 'bg-[var(--p)] text-white shadow-lg shadow-[var(--p)]/20' : 'text-gray-500 hover:text-gray-300'}`}
+                          className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${sortBy === filter.id ? 'bg-[var(--p)] text-white shadow-lg shadow-[var(--p)]/20' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                         >
                           {filter.label}
                         </button>
@@ -985,7 +1066,7 @@ export default function App() {
                         <motion.div 
                           key={product.id}
                           whileHover={{ y: -10 }}
-                          className="bg-[#111a24] rounded-3xl border border-white/10 overflow-hidden group relative"
+                          className="bg-[var(--card)] rounded-3xl border border-[var(--border)] overflow-hidden group relative"
                         >
                           {product.isOffer && (
                             <div className="absolute top-4 left-4 z-10 bg-red-500 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest">
@@ -1005,24 +1086,24 @@ export default function App() {
                           </div>
                           <div className="p-6">
                             <p className="text-[9px] text-[var(--p)] font-black uppercase tracking-[0.2em] mb-1">{product.category}</p>
-                            <h3 className="font-bold text-lg mb-2">{product.name}</h3>
+                            <h3 className="font-bold text-lg mb-2 text-[var(--text)]">{product.name}</h3>
                             <div className="flex items-center justify-between">
                               <div className="flex flex-col">
                                 <div className="flex items-baseline gap-1.5">
-                                  <span className="text-white font-black text-xl">${product.price}</span>
+                                  <span className="text-[var(--text)] font-black text-xl">${product.price}</span>
                                   {product.wholesalePrice && (
                                     <span className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Mayorista 🔥</span>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">x {product.unitType === 'dozen' ? 'Docena' : 'Unidad'}</span>
+                                  <span className="text-[9px] text-[var(--text-muted)] font-bold uppercase tracking-widest">x {product.unitType === 'dozen' ? 'Docena' : 'Unidad'}</span>
                                   {product.isOffer && product.originalPrice && (
                                     <span className="text-[9px] text-gray-500 line-through font-bold">${product.originalPrice}</span>
                                   )}
                                 </div>
                               </div>
-                              <button onClick={() => addToCart(product)} className="bg-white/5 hover:bg-white/10 p-2 rounded-xl transition-all">
-                                <Plus className="w-4 h-4 text-gray-400" />
+                              <button onClick={() => addToCart(product)} className="bg-[var(--text)]/5 hover:bg-[var(--text)]/10 p-2 rounded-xl transition-all">
+                                <Plus className="w-4 h-4 text-[var(--text-muted)]" />
                               </button>
                             </div>
                           </div>
@@ -1040,18 +1121,18 @@ export default function App() {
           })() : null}
         </main>
 
-        <footer className="bg-[#0a1118] border-t border-white/10 pt-16 pb-8">
+        <footer className="border-t border-[var(--border)] pt-16 pb-8" style={{ backgroundColor: 'var(--footer-bg)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
               <div className="col-span-1 md:col-span-2">
                 <img src={imgSizes.logo(heroData.logoImage)} alt="Logo" className="w-24 mb-6" />
-                <p className="text-gray-400 text-sm max-w-md leading-relaxed">
+                <p className="text-[var(--text-muted)] text-sm max-w-md leading-relaxed">
                   {footerData.description}
                 </p>
               </div>
               <div>
-                <h4 className="text-white font-bold mb-6 italic tracking-tighter uppercase text-sm">Navegación</h4>
-                <ul className="space-y-4 text-xs text-gray-400 font-medium">
+                <h4 className="text-[var(--text)] font-bold mb-6 italic tracking-tighter uppercase text-sm">Navegación</h4>
+                <ul className="space-y-4 text-xs text-[var(--text-muted)] font-medium">
                   {navItems.map(item => (
                     <li key={item.label}>
                       <button 
@@ -1106,23 +1187,23 @@ export default function App() {
                 </ul>
               </div>
               <div>
-                <h4 className="text-white font-bold mb-6">Contacto</h4>
-                <ul className="space-y-4 text-sm text-gray-400">
+                <h4 className="text-[var(--text)] font-bold mb-6">Contacto</h4>
+                <ul className="space-y-4 text-sm text-[var(--text-muted)]">
                   <li className="flex items-center gap-3"><Phone className="w-4 h-4 text-[var(--p)]" /> {footerData.phone}</li>
                   <li className="flex items-center gap-3"><Mail className="w-4 h-4 text-[var(--p)]" /> {footerData.email}</li>
                   <li className="flex items-center gap-3"><MapPin className="w-4 h-4 text-[var(--p)]" /> {footerData.address}</li>
                 </ul>
                 <div className="flex gap-4 mt-8">
-                  <a href={footerData.social.instagram}><Instagram className="w-5 h-5 text-gray-400 hover:text-[var(--p)] cursor-pointer transition-colors" /></a>
-                  <a href={footerData.social.facebook}><Facebook className="w-5 h-5 text-gray-400 hover:text-[var(--p)] cursor-pointer transition-colors" /></a>
+                  <a href={footerData.social.instagram}><Instagram className="w-5 h-5 text-[var(--text-muted)] hover:text-[var(--p)] cursor-pointer transition-colors" /></a>
+                  <a href={footerData.social.facebook}><Facebook className="w-5 h-5 text-[var(--text-muted)] hover:text-[var(--p)] cursor-pointer transition-colors" /></a>
                 </div>
               </div>
             </div>
-            <div className="border-t border-white/5 pt-8 flex flex-col md:row items-center justify-between gap-4 text-xs text-gray-500">
+            <div className="border-t border-[var(--border)] pt-8 flex flex-col md:row items-center justify-between gap-4 text-xs text-[var(--text-muted)]">
               <p>© 2024 Distribuidora DGO. Todos los derechos reservados.</p>
               <div className="flex gap-6">
-                <a href="#" className="hover:text-white transition-colors">Términos y Condiciones</a>
-                <a href="#" className="hover:text-white transition-colors">Política de Privacidad</a>
+                <a href="#" className="hover:text-[var(--text)] transition-colors">Términos y Condiciones</a>
+                <a href="#" className="hover:text-[var(--text)] transition-colors">Política de Privacidad</a>
               </div>
             </div>
           </div>
@@ -1158,7 +1239,7 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="fixed top-[10%] left-1/2 -translate-x-1/2 w-full max-w-2xl bg-[#111a24] border border-white/10 rounded-3xl z-[210] p-8 shadow-2xl"
+                className="fixed top-[10%] left-1/2 -translate-x-1/2 w-full max-w-2xl bg-[var(--card)] border border-[var(--border)] rounded-3xl z-[210] p-8 shadow-2xl"
               >
                 <div className="flex items-center gap-4 mb-8">
                   <Search className="w-6 h-6 text-[var(--p)]" />
@@ -1168,7 +1249,7 @@ export default function App() {
                     placeholder="Buscar productos..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent border-none text-2xl font-bold focus:ring-0 placeholder-gray-600"
+                    className="flex-1 bg-transparent border-none text-2xl font-bold focus:ring-0 placeholder-gray-500 text-[var(--text)]"
                   />
                   <X 
                     onClick={() => setIsSearchOpen(false)}
@@ -1190,11 +1271,11 @@ export default function App() {
                             setIsSearchOpen(false);
                             setSearchQuery('');
                           }}
-                          className="flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 cursor-pointer transition-all border border-transparent hover:border-white/10"
+                          className="flex items-center gap-4 p-4 rounded-2xl hover:bg-[var(--text)]/5 cursor-pointer transition-all border border-transparent hover:border-[var(--border)]"
                         >
                           <img src={imgSizes.thumb(p.images?.[0] || p.image || '/p1.webp')} className="w-16 h-16 object-cover rounded-xl" />
                           <div>
-                            <h4 className="font-bold text-white text-sm">{p.name}</h4>
+                            <h4 className="font-bold text-[var(--text)] text-sm">{p.name}</h4>
                             <div className="flex items-center gap-2">
                               <p className="text-[var(--p)] font-black text-sm">${p.price}</p>
                               {p.wholesalePrice && <span className="text-[8px] bg-emerald-500/10 text-emerald-500 font-black px-1 rounded">MAYORISTA</span>}
@@ -1227,18 +1308,19 @@ export default function App() {
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
-                className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-[#0a1118] z-[120] shadow-2xl border-l border-white/10 flex flex-col"
+                className="fixed top-0 right-0 bottom-0 w-full max-w-md z-[120] shadow-2xl border-l border-[var(--border)] flex flex-col"
+                style={{ backgroundColor: 'var(--card)', color: 'var(--text)' }}
               >
-                <div className="p-8 border-b border-white/10 flex items-center justify-between">
+                <div className="p-8 border-b border-[var(--border)] flex items-center justify-between">
                   <h3 className="text-2xl font-black uppercase tracking-tighter">Tu Carrito</h3>
-                  <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-all">
-                    <X className="w-6 h-6" />
+                  <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-[var(--text)]/5 rounded-full transition-all">
+                    <X className="w-6 h-6 text-[var(--text)]" />
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-8 space-y-6">
                   {cart.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-4">
-                      <ShoppingCart className="w-12 h-12 opacity-20" />
+                    <div className="h-full flex flex-col items-center justify-center gap-4" style={{ color: 'var(--text-muted)' }}>
+                      <ShoppingCart className="w-12 h-12 opacity-30" />
                       <p className="font-bold uppercase tracking-widest text-xs">El carrito está vacío</p>
                     </div>
                   ) : (
@@ -1247,10 +1329,10 @@ export default function App() {
                       const currentPrice = isWholesaleApplied ? item.wholesalePrice : item.price;
                       
                       return (
-                        <div key={item.id} className="flex gap-4 bg-[#111a24] p-4 rounded-2xl border border-white/5 relative overflow-hidden">
+                        <div key={item.id} className="flex gap-4 p-4 rounded-2xl border border-[var(--border)] relative overflow-hidden" style={{ backgroundColor: 'var(--bg)' }}>
                           {isWholesaleApplied && (
-                            <div className="absolute top-0 right-0 bg-emerald-500 text-[8px] font-black px-2 py-1 rounded-bl-lg uppercase tracking-widest z-10">
-                              Mayorista 🔥
+                            <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[8px] font-black px-2 py-1 rounded-bl-lg uppercase tracking-widest z-10">
+                              Mayorista
                             </div>
                           )}
                           <img src={imgSizes.thumb(item.image)} alt={item.name} className="w-20 h-20 object-cover rounded-xl" />
@@ -1258,22 +1340,22 @@ export default function App() {
                             <h4 className="font-bold text-sm mb-1">{item.name}</h4>
                             <p className="text-[var(--p)] font-black text-lg">
                               ${currentPrice} 
-                              <span className="text-[10px] text-gray-500 font-bold ml-1 uppercase">x {item.unitType === 'dozen' ? 'Docena' : 'Unidad'}</span>
+                              <span className="text-[10px] text-[var(--text-muted)] font-bold ml-1 uppercase">x {item.unitType === 'dozen' ? 'Docena' : 'Unidad'}</span>
                             </p>
                             <div className="flex flex-col gap-1 mt-2">
                               <div className="flex items-center gap-4">
-                                <div className="flex items-center bg-black/20 rounded-lg px-2 py-1">
-                                  <button onClick={() => updateQuantity(item.id, -1)} className="px-2 text-gray-400 hover:text-white">-</button>
-                                  <span className="px-2 text-xs font-bold">{item.quantity}</span>
-                                  <button onClick={() => updateQuantity(item.id, 1)} className="px-2 text-gray-400 hover:text-white">+</button>
+                                <div className="flex items-center rounded-lg px-2 py-1 border border-[var(--border)]" style={{ backgroundColor: 'var(--card)' }}>
+                                  <button onClick={() => updateQuantity(item.id, -1)} className="px-2 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">-</button>
+                                  <span className="px-2 text-xs font-bold text-[var(--text)]">{item.quantity}</span>
+                                  <button onClick={() => updateQuantity(item.id, 1)} className="px-2 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors">+</button>
                                 </div>
                                 <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-400 transition-all">
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
-                              {(item.minPurchaseQuantity > 1) && (
-                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest leading-none">
-                                  Incrementos de {item.minPurchaseQuantity}
+                              {(item.purchaseStep > 1) && (
+                                <span className="text-[9px] text-[var(--p)] font-black uppercase tracking-widest leading-none">
+                                  + Suma de a {item.purchaseStep} {item.unitType === 'dozen' ? 'doc' : 'un'}
                                 </span>
                               )}
                             </div>
@@ -1283,14 +1365,14 @@ export default function App() {
                     })
                   )}
                 </div>
-                <div className="p-8 border-t border-white/10 bg-[#111a24]">
+                <div className="p-8 border-t border-[var(--border)]" style={{ backgroundColor: 'var(--bg)' }}>
                   <div className="flex items-center justify-between mb-6">
-                    <span className="text-gray-400 font-bold uppercase tracking-widest text-xs">Total Estimado</span>
-                    <span className="text-3xl font-black text-white">${cartTotal}</span>
+                    <span className="text-[var(--text-muted)] font-bold uppercase tracking-widest text-xs">Total Estimado</span>
+                    <span className="text-3xl font-black text-[var(--text)] font-sans">${cartTotal.toLocaleString('es-AR')}</span>
                   </div>
                   <button 
                     onClick={() => { navigate('/checkout'); setIsCartOpen(false); }}
-                    className="w-full bg-[var(--p)] text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-emerald-600 transition-all shadow-xl shadow-emerald-500/20"
+                    className="w-full bg-[var(--p)] text-white py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:brightness-110 transition-all shadow-xl shadow-[var(--p)]/20"
                   >
                     Finalizar Compra
                   </button>
@@ -1315,7 +1397,7 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-4xl bg-[#0a1118] z-[140] rounded-[40px] border border-white/10 overflow-hidden flex flex-col md:flex-row shadow-2xl"
+                className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-4xl bg-[var(--card)] z-[140] rounded-[40px] border border-[var(--border)] overflow-hidden flex flex-col md:flex-row shadow-2xl"
               >
                 <div className="md:w-1/2 h-64 md:h-auto relative">
                   <img 
@@ -1331,18 +1413,18 @@ export default function App() {
                   <div className="flex justify-between items-start mb-6">
                     <div>
                       <span className="text-[var(--p)] text-[10px] font-black uppercase tracking-[0.2em] mb-2 block">Categoría: {selectedProduct.category}</span>
-                      <h3 className="text-3xl font-black uppercase tracking-tighter leading-none">{selectedProduct.name}</h3>
+                      <h3 className="text-3xl font-black uppercase tracking-tighter leading-none text-[var(--text)]">{selectedProduct.name}</h3>
                     </div>
                     <button onClick={() => setSelectedProduct(null)} className="hidden md:block p-2 hover:bg-white/5 rounded-full transition-all">
                       <X className="w-6 h-6" />
                     </button>
                   </div>
-                  <p className="text-gray-400 text-sm leading-relaxed mb-8 flex-1">
+                  <p className="text-[var(--text-muted)] text-sm leading-relaxed mb-8 flex-1">
                     {selectedProduct.description || 'Este producto de alta calidad está diseñado para satisfacer las demandas más exigentes del sector gastronómico profesional. Durabilidad, elegancia y funcionalidad en cada detalle.'}
                   </p>
                   <div className="space-y-6">
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                    <div className="flex items-center justify-between p-4 bg-[var(--text)]/5 rounded-2xl border border-[var(--border)]">
                       <div>
                         <span className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Precio {
                           selectedProduct.unitType === 'dozen' ? 'por Docena' : 
@@ -1351,12 +1433,19 @@ export default function App() {
                         }</span>
                         <div className="flex flex-col">
                           <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-black text-white">${selectedProduct.price}</span>
+                            <span className="text-3xl font-black text-[var(--text)]">${selectedProduct.price}</span>
                           </div>
                           {selectedProduct.minPurchaseQuantity > 1 && (
-                            <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">
-                               Mínimo {selectedProduct.minPurchaseQuantity} {selectedProduct.unitType === 'unit' ? 'unidades' : 'un'}
-                            </span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">
+                                Mínimo de compra: {selectedProduct.minPurchaseQuantity} {selectedProduct.unitType === 'unit' ? 'unidades' : 'un'}
+                              </span>
+                              {selectedProduct.purchaseStep > 1 && (
+                                <span className="text-[9px] text-emerald-500/70 font-bold uppercase tracking-widest">
+                                  (Suma de a {selectedProduct.purchaseStep} después del mínimo)
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1371,7 +1460,7 @@ export default function App() {
                       )}
                     </div>
                     <div className="flex gap-4">
-                      <button onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }} className="flex-1 bg-white text-black py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-gray-200 transition-all">
+                      <button onClick={() => { addToCart(selectedProduct); setSelectedProduct(null); }} className="flex-1 bg-[var(--text)] text-[var(--bg)] py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:brightness-110 transition-all">
                         Agregar al Carrito
                       </button>
                       <button 
@@ -1393,11 +1482,11 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Registration Incentive Popup */}
         <RegistrationIncentive 
           isLoggedIn={!!currentUser} 
           onRegisterClick={() => setIsAuthModalOpen(true)} 
         />
+
 
         {/* Auth Modal */}
         <AnimatePresence>
@@ -1512,7 +1601,7 @@ function AuthModal({ onClose }: { onClose: () => void }) {
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-[#111a24] z-[160] rounded-[40px] border border-white/10 p-10 shadow-2xl overflow-hidden"
+        className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-[var(--card)] z-[160] rounded-[40px] border border-[var(--border)] p-10 shadow-2xl overflow-hidden"
       >
         <button onClick={onClose} className="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors">
           <X className="w-6 h-6" />
@@ -1698,6 +1787,48 @@ function SuccessModal({ onClose }: { onClose: () => void }) {
         </button>
       </motion.div>
     </>
+  );
+}
+
+function ThemeSwitcher({ isDarkMode, toggle }: { isDarkMode: boolean; toggle: () => void }) {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.9 }}
+      onClick={toggle}
+      title={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+      className={`p-2.5 rounded-full border-2 transition-all flex items-center justify-center ${
+        isDarkMode
+          ? 'border-indigo-400/40 bg-indigo-500/15 hover:border-indigo-400/70 hover:bg-indigo-500/25'
+          : 'border-amber-400/40 bg-amber-500/15 hover:border-amber-400/70 hover:bg-amber-500/25'
+      }`}
+    >
+      <div className="relative w-5 h-5">
+        <AnimatePresence mode="wait">
+          {isDarkMode ? (
+            <motion.div
+              key="moon"
+              initial={{ rotate: -90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: 90, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'backOut' }}
+            >
+              <Moon className="w-5 h-5 text-indigo-400" />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="sun"
+              initial={{ rotate: 90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: -90, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'backOut' }}
+            >
+              <Sun className="w-5 h-5 text-amber-500" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.button>
   );
 }
 

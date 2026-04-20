@@ -123,37 +123,17 @@ export const dbService = {
   },
 
   addOrder: async (order: Omit<Order, 'id' | 'status' | 'createdAt'>): Promise<string> => {
-    return await runTransaction(db, async (transaction) => {
-      // 1. Validar y descontar stock para cada producto
-      for (const item of order.items) {
-        const productRef = doc(db, DB_PATHS.PRODUCTS, item.productId);
-        const productSnap = await transaction.get(productRef);
-        
-        if (!productSnap.exists()) {
-          throw new Error(`El producto ${item.name} ya no existe.`);
-        }
-        
-        const currentStock = productSnap.data().stock || 0;
-        if (currentStock < item.quantity) {
-          throw new Error(`Stock insuficiente para ${item.name} (${currentStock} disponibles)`);
-        }
-        
-        transaction.update(productRef, {
-          stock: currentStock - item.quantity
-        });
-      }
-
-      // 2. Crear el pedido
-      const orderRef = doc(collection(db, DB_PATHS.ORDERS));
-      const orderData = {
-        ...dbService.cleanObject(order),
-        status: 'pending',
-        createdAt: new Date().toISOString()
-      };
-      
-      transaction.set(orderRef, orderData);
-      return orderRef.id;
-    });
+    // NOTA: El stock se descuenta SOLO al confirmar el pago (webhook),
+    // no en este momento. Así evitamos permisos de escritura en /products
+    // para usuarios no autenticados.
+    const orderRef = doc(collection(db, DB_PATHS.ORDERS));
+    const orderData = {
+      ...dbService.cleanObject(order),
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+    await setDoc(orderRef, orderData);
+    return orderRef.id;
   },
 
   updateOrderStatus: async (

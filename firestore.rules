@@ -70,6 +70,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Analytics de la tienda (colección 'analitica')
+    match /analitica/{eventId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Compatibilidad con ruta vieja (por si existe data legacy)
     match /data/analytics/{eventId} {
       allow create: if true;
       allow read, update, delete: if isAdmin();

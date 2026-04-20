@@ -96,7 +96,25 @@ export const handler: Handler = async (event) => {
             paymentMethod: 'mercadopago_pro'
           });
 
-          // 2. Enviar Email de Confirmación
+          // 2. Descontar stock de cada producto (Admin SDK, sin restricciones de permisos)
+          if (orderData.items && Array.isArray(orderData.items)) {
+            for (const item of orderData.items) {
+              try {
+                const productRef = adminDb.collection('products').doc(item.productId);
+                const productSnap = await productRef.get();
+                if (productSnap.exists) {
+                  const currentStock = productSnap.data()?.stock || 0;
+                  const newStock = Math.max(0, currentStock - (item.quantity || 1));
+                  await productRef.update({ stock: newStock });
+                  console.log(`Stock actualizado: ${item.name} → ${currentStock} - ${item.quantity} = ${newStock}`);
+                }
+              } catch (stockErr) {
+                console.error(`Error al actualizar stock de ${item.name}:`, stockErr);
+              }
+            }
+          }
+
+          // 3. Enviar Email de Confirmación
           if (GMAIL_EMAIL && GMAIL_APP_PASSWORD) {
             try {
               const transporter = nodemailer.createTransport({

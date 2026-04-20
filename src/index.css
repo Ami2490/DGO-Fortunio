@@ -9,9 +9,27 @@
   --p: #10b981;
   --p-rgb: 16, 185, 129;
   --br: 24px;
+  
+  /* Theme Base default fallback */
+  --bg: #0a0f16;
+  --card: #111a24;
+  --text: #ffffff;
+  --text-muted: #94a3b8;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+              color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @layer base {
+  * {
+    border-color: var(--border);
+  }
+  
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
   }
@@ -19,10 +37,10 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--border);
     border-radius: 10px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--text-muted);
   }
 }

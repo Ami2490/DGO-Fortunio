@@ -1,16 +1,15 @@
+functionsDirectory = "C:\\Users\\narda\\Desktop\\trabajo\\DGO\\inicio\\netlify\\functions"
+functionsDirectoryOrigin = "config"
+redirectsOrigin = "config"
 plugins = []
 headers = []
 
-[functions]
-
-[functions."*"]
-
 [build]
 publish = "C:\\Users\\narda\\Desktop\\trabajo\\DGO\\inicio\\dist"
-publishOrigin = "ui"
-commandOrigin = "ui"
-base = "C:\\Users\\narda\\Desktop\\trabajo\\DGO\\inicio"
+publishOrigin = "config"
+commandOrigin = "config"
 command = "npm run build"
+functions = "C:\\Users\\narda\\Desktop\\trabajo\\DGO\\inicio\\netlify\\functions"
 
 [build.environment]
 
@@ -26,9 +25,25 @@ command = "npm run build"
 
 [build.services]
 
+[functions]
+
+[functions."*"]
+
 [[redirects]]
 from = "/*"
 to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
+
+[[redirects]]
+from = "/api/*"
+to = "/.netlify/functions/:splat"
 status = 200.0
 force = false
 
